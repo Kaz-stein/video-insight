@@ -1,0 +1,23 @@
+# 测试用内存库：不依赖本机 MySQL 密码，CI 也能跑
+# 注意：只在 test 生效；生产绝不能因为"图省事"用 H2 跑
+spring:
+  datasource:
+    url: jdbc:h2:mem:video_insight;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: none
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+
+video:
+  pipeline:
+    real-handlers: false
+  mq:
+    enabled: false
+    compensation-interval-ms: 3600000
+    pending-grace-seconds: 60
