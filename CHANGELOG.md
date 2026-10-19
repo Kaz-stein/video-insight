@@ -31,6 +31,13 @@ git fetch --tags
 git switch -c rollback/video milestone-video-2026-10-19
 ```
 
+本地离线备份：
+
+```text
+D:\Code\backups\video-insight-video-2026-10-19.bundle
+SHA256: 8CDD78E21369B28091E9749E1CDF3EAD611206744E1D02B126FE9E3C5F55EB73
+```
+
 ## 2026-10-19 — 前端工作台（夜航玻璃拟态）
 
 Tag：`milestone-frontend-2026-10-19`
