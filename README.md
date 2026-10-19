@@ -149,12 +149,12 @@ $env:MYSQL_IT='true'; mvn -Dtest=MysqlArtifactStoreIT test
 
 里程碑固定为：
 
-- 分支：`milestone/t5-2026-10-19`
-- 标签：`milestone-t5-2026-10-19`
+- 分支：`milestone/t7-2026-10-19`
+- 标签：`milestone-t7-2026-10-19`
 
 ```powershell
 git fetch --tags
-git switch -c rollback/t5 milestone-t5-2026-10-19
+git switch -c rollback/t7 milestone-t7-2026-10-19
 ```
 
 把 `main` 强制拉回该点前请先备份分支，详见 [CHANGELOG.md](CHANGELOG.md)。

@@ -25,6 +25,13 @@ git fetch --tags
 git switch -c rollback/t7 milestone-t7-2026-10-19
 ```
 
+本地离线备份：
+
+```text
+D:\Code\backups\video-insight-milestone-t7-2026-10-19.bundle
+SHA256: C7F994DC9EF9AD29C31B5007FE299558414524C04F4E4864F84587B0D6873EC8
+```
+
 ## 2026-10-19 — T6 API 与笔记落库
 
 Tag：`milestone-t6-2026-10-19`
