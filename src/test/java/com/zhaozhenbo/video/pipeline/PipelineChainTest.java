@@ -16,6 +16,8 @@ import com.zhaozhenbo.video.pipeline.stage.PlanningStage;
 import com.zhaozhenbo.video.pipeline.stage.SegmentingStage;
 import com.zhaozhenbo.video.pipeline.stage.VerifyingStage;
 import com.zhaozhenbo.video.port.ArtifactStorePort;
+import com.zhaozhenbo.video.port.NoteStorePort;
+import com.zhaozhenbo.video.port.StoredNote;
 import com.zhaozhenbo.video.port.StageHandler;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -66,6 +68,7 @@ class PipelineChainTest {
         Critic critic = new Critic(llm, mapper);
         Composer composer = new Composer(llm, mapper);
         EvidenceVerifier verifier = new EvidenceVerifier();
+        InMemoryNoteStore notes = new InMemoryNoteStore();
 
         List<StageHandler> stages = List.of(
                 new FetchingStage(new LocalCaptionSource(), artifacts),
@@ -73,7 +76,7 @@ class PipelineChainTest {
                 new PlanningStage(planner, artifacts),
                 new ExtractingStage(extractor, artifacts),
                 new VerifyingStage(critic, verifier, artifacts),
-                new ComposingStage(composer, artifacts, "fake-model"));
+                new ComposingStage(composer, artifacts, notes, "fake-model"));
 
         TaskContext context = new TaskContext(
                 1, 1, "f".repeat(64), "FILE", srt.toString(), "线程池讲解", 24_000L);
@@ -88,6 +91,7 @@ class PipelineChainTest {
         assertThat(note.passesQualityGate()).isTrue();
         assertThat(note.markdown()).contains("## 内容总结", "## 时间轴", "00:00");
         assertThat(note.outline()).isNotEmpty();
+        assertThat(notes.saved).isNotNull();
         assertThat(artifacts.load("f".repeat(64), ArtifactKind.VERIFY, VerificationArtifact.class))
                 .isPresent();
     }
@@ -120,6 +124,20 @@ class PipelineChainTest {
             } catch (Exception e) {
                 throw new IllegalStateException(e);
             }
+        }
+    }
+
+    static class InMemoryNoteStore implements NoteStorePort {
+        private NoteDraft saved;
+
+        @Override
+        public void save(long userId, String fingerprint, long taskId, NoteDraft draft) {
+            saved = draft;
+        }
+
+        @Override
+        public java.util.Optional<StoredNote> findByTask(long taskId, long userId, String fingerprint) {
+            return java.util.Optional.empty();
         }
     }
 }

@@ -1,5 +1,31 @@
 # 变更记录
 
+## 2026-10-19 — T6 API 与笔记落库
+
+Tag：`milestone-t6-2026-10-19`
+
+### 已完成
+
+- `POST /api/tasks` multipart 上传 SRT/VTT，先落库再投递 RocketMQ
+- 同用户 + 同文件 + 同参数幂等，重复提交返回同一个 taskId
+- `GET /api/tasks/{id}`、`/note`、`/note.md`
+- `POST /api/tasks/{id}/retry`：FAILED → PENDING，保留 stage 从断点继续
+- `note` / `note_point` JDBC 落库；一个视频一篇笔记，生成即冻结
+- 42 项测试通过（1 项可选 MQ 冒烟默认跳过）
+
+### 验证
+
+- 真 MySQL + RocketMQ + HTTP：上传 SRT → DONE → `note` / `note_point` 落库
+- `/note` 返回首条要点 `GROUNDED`、`overlap=1.0`
+- `/note.md` 返回完整 Markdown，内容与库中一致
+
+### 回退
+
+```powershell
+git fetch --tags
+git switch -c rollback/t6 milestone-t6-2026-10-19
+```
+
 ## 2026-10-19 — T1–T5 里程碑
 
 Tag：`milestone-t5-2026-10-19`
@@ -79,6 +105,5 @@ git revert <commit-sha>
 
 ### 下一里程碑
 
-- T6：`POST /api/tasks`、状态查询、`/note`、`/note.md`、retry、note/note_point 落库
 - T7：评测集、引用可回溯率/无依据率/平均耗时、Redis 令牌桶
 - 前端：原生 HTML/CSS/JS + 播放器时间戳跳转

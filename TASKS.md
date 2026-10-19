@@ -66,12 +66,23 @@
   六个 artifact 全部落库，NOTE 里第一条要点 overlap=1.0 / GROUNDED
 - MySQL JSON 列验证：`MYSQL_IT=true mvn -Dtest=MysqlArtifactStoreIT test`
 
-## T6 API 与端到端
+## T6 API 与端到端 ✅
 
 - 目标：HTTP 层可用，能提交、查询、取 Markdown
 - 范围：`api/` 控制器、DTO、异常处理器
 - 验收：端到端测试（`FakeLlm`）走完提交 → 轮询 → 取笔记；
   **含一条"伪造引用被剔除"的断言**；`GET /note.md` 下载内容与库中 markdown 一致
+
+实现说明：
+
+- `POST /api/tasks`：multipart 上传 SRT/VTT，算 sha256 + params_hash，先落库再投递 MQ
+- 幂等：同用户 + 同文件 + 同参数直接返回已有 taskId
+- `GET /api/tasks/{id}`、`GET /api/tasks/{id}/note`、`GET /api/tasks/{id}/note.md`
+- `POST /api/tasks/{id}/retry`：只允许 FAILED，保留 stage，从断点继续
+- `note` / `note_point` 用 JDBC 落库；一个视频一篇笔记，生成即冻结
+- 4 个 MockMvc 用例：完整流程、重复提交幂等、笔记未生成 409、FAILED 重试
+- 真 MySQL + RocketMQ + HTTP 验证：上传 SRT → task DONE → note/note_point 落库 →
+  `/note` 返回 GROUNDED / overlap=1.0 → `/note.md` 返回 Markdown
 
 ## T7 评测与限流
 

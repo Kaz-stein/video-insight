@@ -20,9 +20,9 @@ import com.zhaozhenbo.video.pipeline.stage.VerifyingStage;
 import com.zhaozhenbo.video.port.ArtifactStorePort;
 import com.zhaozhenbo.video.port.CaptionSourcePort;
 import com.zhaozhenbo.video.port.LlmPort;
+import com.zhaozhenbo.video.port.NoteStorePort;
 import com.zhaozhenbo.video.port.StageHandler;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.ObjectMapper;
@@ -32,7 +32,6 @@ import tools.jackson.databind.ObjectMapper;
  */
 @Configuration
 @ConditionalOnProperty(name = "video.pipeline.real-handlers", havingValue = "true")
-@EnableConfigurationProperties(LlmProperties.class)
 public class PipelineHandlerConfig {
 
     @Bean
@@ -106,7 +105,8 @@ public class PipelineHandlerConfig {
     @Bean
     public StageHandler composingStage(Composer composer,
                                        ArtifactStorePort artifacts,
+                                       NoteStorePort notes,
                                        LlmProperties properties) {
-        return new ComposingStage(composer, artifacts, properties.getModel());
+        return new ComposingStage(composer, artifacts, notes, properties.getModel());
     }
 }

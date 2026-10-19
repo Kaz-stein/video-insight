@@ -9,6 +9,7 @@ import com.zhaozhenbo.video.pipeline.agent.NoteDraft;
 import com.zhaozhenbo.video.pipeline.agent.Plan;
 import com.zhaozhenbo.video.pipeline.agent.QualityGateException;
 import com.zhaozhenbo.video.port.ArtifactStorePort;
+import com.zhaozhenbo.video.port.NoteStorePort;
 import com.zhaozhenbo.video.port.StageHandler;
 
 /** COMPOSING：成稿 + 质量门槛。不达标直接失败，不落“看起来像笔记”的垃圾。 */
@@ -16,11 +17,16 @@ public class ComposingStage implements StageHandler {
 
     private final Composer composer;
     private final ArtifactStorePort artifacts;
+    private final NoteStorePort notes;
     private final String model;
 
-    public ComposingStage(Composer composer, ArtifactStorePort artifacts, String model) {
+    public ComposingStage(Composer composer,
+                          ArtifactStorePort artifacts,
+                          NoteStorePort notes,
+                          String model) {
         this.composer = composer;
         this.artifacts = artifacts;
+        this.notes = notes;
         this.model = model;
     }
 
@@ -31,7 +37,8 @@ public class ComposingStage implements StageHandler {
 
     @Override
     public void execute(TaskContext context) {
-        if (artifacts.load(context.fingerprint(), ArtifactKind.NOTE, NoteDraft.class).isPresent()) {
+        // 以数据库里的 note 为准：artifact 写了但 note 没落时会重算，避免“假完成”
+        if (notes.findByTask(context.taskId(), context.userId(), context.fingerprint()).isPresent()) {
             return;
         }
         Plan plan = artifacts.load(context.fingerprint(), ArtifactKind.PLAN, Plan.class)
@@ -49,6 +56,7 @@ public class ComposingStage implements StageHandler {
                     "笔记可回溯率仅 " + Math.round(draft.groundedRatio() * 100)
                             + "%，低于 40% 门槛");
         }
+        notes.save(context.userId(), context.fingerprint(), context.taskId(), draft);
         artifacts.save(context.fingerprint(), ArtifactKind.NOTE, draft);
     }
 }

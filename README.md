@@ -2,8 +2,8 @@
 
 把长视频变成**每条要点都能回跳原片时间点**的 Markdown 笔记。
 
-> 当前状态：T1–T5 已完成（解析 → 切段 → 四步 Agent → 证据校验 → 成稿）。
-> T6 API、T7 评测/限流、前端播放器还在路上。
+> 当前状态：T1–T6 已完成（解析 → 切段 → 四步 Agent → 证据校验 → 成稿 → HTTP API）。
+> T7 评测/限流、前端播放器还在路上。
 
 ## 为什么做这个
 
@@ -25,6 +25,7 @@
 - RocketMQ 异步：幂等抢占、阶段 checkpoint、1s/5s/30s 重试、死信、补偿投递
 - 阶段产物落 MySQL `video_artifact`（JSON），键带 pipeline 版本
 - FakeLLM 离线测试 + OpenAI 兼容 HTTP 适配器（DeepSeek / Qwen / GLM）
+- HTTP API：上传字幕、查询任务、取笔记 JSON、下载 Markdown、失败重试
 
 ## 架构
 
@@ -94,6 +95,21 @@ $env:Path = "C:\Windows\System32;C:\Windows;" + $env:Path
 java -jar target\video-insight-0.0.1-SNAPSHOT.jar
 ```
 
+上传字幕并生成笔记：
+
+```powershell
+$form = @{
+  file  = Get-Item 'data\demo.srt'
+  title = '线程池讲解'
+}
+$task = Invoke-RestMethod -Uri 'http://127.0.0.1:8080/api/tasks' -Method Post -Form $form
+$task.id
+
+# 轮询状态，DONE 后取笔记
+Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/tasks/$($task.id)/note"
+Invoke-WebRequest -Uri "http://127.0.0.1:8080/api/tasks/$($task.id)/note.md" -OutFile note.md
+```
+
 可选的真中间件验证：
 
 ```powershell
@@ -112,7 +128,7 @@ $env:MYSQL_IT='true'; mvn -Dtest=MysqlArtifactStoreIT test
 
 ## 测试状态
 
-- `mvn test`：38 项通过，0 失败，1 项可选 MQ 冒烟默认跳过
+- `mvn test`：42 项通过，0 失败，1 项可选 MQ 冒烟默认跳过
 - 真 RocketMQ 冒烟：通过
 - MySQL JSON artifact 集成测试：通过
 - 手工端到端：任务 `DONE`，六个 artifact 落库，NOTE 首条要点 `GROUNDED / overlap=1.0`
@@ -133,7 +149,6 @@ git switch -c rollback/t5 milestone-t5-2026-10-19
 
 ## Roadmap
 
-- T6：`POST /api/tasks`、状态查询、`/note`、`/note.md`、retry、note/note_point 落库
 - T7：评测集、引用可回溯率 / 无依据率 / 平均耗时、Redis 令牌桶
 - 前端：原生 HTML/CSS/JS + 播放器时间戳跳转
 - 输入：云 ASR（无字幕时）、B 站字幕适配器、画面 OCR（后续）

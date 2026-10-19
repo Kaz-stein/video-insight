@@ -61,6 +61,19 @@ public interface VideoTaskRepository extends JpaRepository<VideoTaskEntity, Long
                    @Param("error") String error,
                    @Param("now") LocalDateTime now);
 
+    /** FAILED -> PENDING，保留 stage，因此重试从断点继续 */
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update VideoTaskEntity t
+               set t.status = :pending, t.error = null, t.updatedAt = :now
+             where t.id = :id and t.status = :failed
+            """)
+    int resetForRetry(@Param("id") long id,
+                      @Param("pending") TaskStatus pending,
+                      @Param("failed") TaskStatus failed,
+                      @Param("now") LocalDateTime now);
+
     @Query("""
             select t from VideoTaskEntity t
              where t.status = :status and t.updatedAt < :before

@@ -5,6 +5,11 @@ spring:
   application:
     name: video-insight
 
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
   datasource:
     # 默认连本机 MySQL；密码走环境变量，不写进仓库
     url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/video_insight?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8}
