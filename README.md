@@ -2,8 +2,8 @@
 
 把长视频变成**每条要点都能回跳原片时间点**的 Markdown 笔记。
 
-> 当前状态：T1–T6 已完成（解析 → 切段 → 四步 Agent → 证据校验 → 成稿 → HTTP API）。
-> T7 评测/限流、前端播放器还在路上。
+> 当前状态：T1–T7 已完成（解析 → 切段 → 四步 Agent → 证据校验 → 成稿 → HTTP API → 评测/限流）。
+> 前端播放器还在路上。
 
 ## 为什么做这个
 
@@ -26,6 +26,8 @@
 - 阶段产物落 MySQL `video_artifact`（JSON），键带 pipeline 版本
 - FakeLLM 离线测试 + OpenAI 兼容 HTTP 适配器（DeepSeek / Qwen / GLM）
 - HTTP API：上传字幕、查询任务、取笔记 JSON、下载 Markdown、失败重试
+- 评测接口：引用可回溯率、无依据率、平均端到端耗时
+- Redis 令牌桶限流：Lua 原子扣减，超限返回 429 + `Retry-After`
 
 ## 架构
 
@@ -49,6 +51,7 @@ RocketMQ: video-task 主题
 - Java 25 + Spring Boot 4.1.1
 - MySQL 8（JPA + `JdbcTemplate` 读写 JSON artifact）
 - RocketMQ 5.5.1（经典客户端）
+- Redis（令牌桶；无 Redis 时可用内存实现）
 - Jackson 3
 - JUnit 5 + AssertJ + H2（测试）
 
@@ -76,6 +79,9 @@ bin\mqbroker.cmd -n 127.0.0.1:9876 -c conf\broker-local.conf
 $env:DB_PASSWORD='你的 MySQL 密码'
 $env:MQ_ENABLED='true'
 $env:LLM_PROVIDER='fake'          # 本地演示；真实模型用 http
+$env:RATE_LIMIT_MODE='memory'     # 有 Redis 时用 redis
+# $env:RATE_LIMIT_CAPACITY='10'
+# $env:RATE_LIMIT_REFILL='2'
 # $env:LLM_BASE_URL='https://api.deepseek.com'
 # $env:LLM_API_KEY='...'
 # $env:LLM_MODEL='deepseek-chat'
@@ -110,6 +116,12 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/tasks/$($task.id)/note"
 Invoke-WebRequest -Uri "http://127.0.0.1:8080/api/tasks/$($task.id)/note.md" -OutFile note.md
 ```
 
+评测：
+
+```powershell
+.\tools\eval\run.ps1 -BaseUrl 'http://127.0.0.1:8080'
+```
+
 可选的真中间件验证：
 
 ```powershell
@@ -128,7 +140,7 @@ $env:MYSQL_IT='true'; mvn -Dtest=MysqlArtifactStoreIT test
 
 ## 测试状态
 
-- `mvn test`：42 项通过，0 失败，1 项可选 MQ 冒烟默认跳过
+- `mvn test`：44 项通过，0 失败，1 项可选 MQ 冒烟默认跳过
 - 真 RocketMQ 冒烟：通过
 - MySQL JSON artifact 集成测试：通过
 - 手工端到端：任务 `DONE`，六个 artifact 落库，NOTE 首条要点 `GROUNDED / overlap=1.0`
@@ -149,7 +161,6 @@ git switch -c rollback/t5 milestone-t5-2026-10-19
 
 ## Roadmap
 
-- T7：评测集、引用可回溯率 / 无依据率 / 平均耗时、Redis 令牌桶
 - 前端：原生 HTML/CSS/JS + 播放器时间戳跳转
 - 输入：云 ASR（无字幕时）、B 站字幕适配器、画面 OCR（后续）
 

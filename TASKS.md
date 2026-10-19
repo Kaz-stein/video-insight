@@ -84,12 +84,22 @@
 - 真 MySQL + RocketMQ + HTTP 验证：上传 SRT → task DONE → note/note_point 落库 →
   `/note` 返回 GROUNDED / overlap=1.0 → `/note.md` 返回 Markdown
 
-## T7 评测与限流
+## T7 评测与限流 ✅
 
 - 目标：一条命令输出三项指标；接口限流生效
 - 范围：`tools/eval`（评测集 + 跑分脚本）、Redis 令牌桶
 - 验收：`GET /api/eval` 返回 `{ citationRecall, unsupportedRate, avgDurationMs }`；
   超过限额返回 429 且带 `Retry-After`
+
+实现说明：
+
+- `GET /api/eval`：按 `note_point` 聚合可回溯率/无依据率，按 DONE 任务聚合平均耗时
+- `RedisTokenBucketRateLimiter`：Lua 脚本在 Redis 内原子完成读-算-写，避免并发超发
+- `RateLimitFilter`：只限 `POST /api/tasks`；超限返回 429 + `Retry-After`；Redis 不可用时 fail-open
+- 无 Redis 环境用内存令牌桶，测试可确定性验证
+- `tools/eval/run.ps1` + 3 个 SRT 素材，一条命令上传并输出指标
+- 验证：真实 Redis 容量 2，前两次 202，第三次 429，`Retry-After=9991`，
+  Redis key 的 tokens/TTL 可查；44 项测试通过（1 项可选 MQ 冒烟默认跳过）
 
 ## 明确不在本轮
 

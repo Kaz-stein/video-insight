@@ -45,6 +45,12 @@ $env:Path = "C:\Windows\System32;C:\Windows;" + $env:Path
 - 真 MQ 冒烟（可选，需 broker 已启动）：
   先 `mqadmin updateTopic -n 127.0.0.1:9876 -c DefaultCluster -t video-task-smoke`，
   再 `$env:MQ_SMOKE='true'; mvn -Dtest=RocketMqSmokeTest test`
+- Redis（本机便携版）：
+  `C:\Users\pence\Downloads\Redis-8.6.2-Windows-x64-msys2\Redis-8.6.2-Windows-x64-msys2\redis-server.exe redis.conf`，
+  验证 `redis-cli.exe PING` 返回 PONG
+- 限流：默认 `RATE_LIMIT_MODE=memory`；真实 Redis 用 `RATE_LIMIT_MODE=redis`，
+  再配 `RATE_LIMIT_CAPACITY` / `RATE_LIMIT_REFILL`
+- 评测：应用启动后跑 `tools/eval/run.ps1 -BaseUrl http://127.0.0.1:8080`
 - **RocketMQ 5.5.1 的磁盘水位硬上限是 90%**：`CleanCommitLogService` 把
   `diskSpaceWarningLevelRatio` 夹在 0.90，配置调高无效；broker 所在盘超过 90% 会进入只读，
   表现为发送时报 `service not available ... disk is full`

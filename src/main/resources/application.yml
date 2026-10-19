@@ -52,6 +52,11 @@ logging:
     com.zhaozhenbo.video: DEBUG
 
 video:
+  rate-limit:
+    # memory 便于本地/测试；多实例生产切 redis
+    mode: ${RATE_LIMIT_MODE:memory}
+    capacity: ${RATE_LIMIT_CAPACITY:10}
+    refill-per-second: ${RATE_LIMIT_REFILL:2}
   pipeline:
     # 真实阶段处理器；测试 profile 关闭，改用 fake handlers
     real-handlers: true

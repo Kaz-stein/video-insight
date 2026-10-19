@@ -52,6 +52,11 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc</artifactId>
 		</dependency>
+		<!-- Redis 令牌桶：Lua 脚本保证“读-算-写”原子性 -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-redis</artifactId>
+		</dependency>
 		<!-- RocketMQ 经典客户端：生产/消费、延迟消息、死信都靠它 -->
 		<dependency>
 			<groupId>org.apache.rocketmq</groupId>

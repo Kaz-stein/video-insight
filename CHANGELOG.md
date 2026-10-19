@@ -1,5 +1,30 @@
 # 变更记录
 
+## 2026-10-19 — T7 评测与限流
+
+Tag：`milestone-t7-2026-10-19`
+
+### 已完成
+
+- `GET /api/eval`：`citationRecall`、`unsupportedRate`、`avgDurationMs`
+- Redis Lua 令牌桶，按用户维度限制 `POST /api/tasks`
+- 超限返回 429 + `Retry-After`；Redis 不可用时 fail-open
+- 内存令牌桶用于测试/无 Redis 环境
+- `tools/eval/run.ps1` + 3 个 SRT 素材
+
+### 验证
+
+- 44 项测试通过（1 项可选 MQ 冒烟默认跳过）
+- 真实 Redis：容量 2，前两次 202，第三次 429，`Retry-After=9991`
+- Redis key `rate:api:redis-test` 的 tokens/TTL 可查
+
+### 回退
+
+```powershell
+git fetch --tags
+git switch -c rollback/t7 milestone-t7-2026-10-19
+```
+
 ## 2026-10-19 — T6 API 与笔记落库
 
 Tag：`milestone-t6-2026-10-19`
