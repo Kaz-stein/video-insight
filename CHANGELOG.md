@@ -29,6 +29,13 @@ git fetch --tags
 git switch -c rollback/frontend milestone-frontend-2026-10-19
 ```
 
+本地离线备份：
+
+```text
+D:\Code\backups\video-insight-frontend-2026-10-19.bundle
+SHA256: 2B8EBFF3C5AA6899F46E6A4A941229E2E2570C33474BD62F03FAF638ECF4D1FE
+```
+
 ## 2026-10-19 — T7 评测与限流
 
 Tag：`milestone-t7-2026-10-19`
