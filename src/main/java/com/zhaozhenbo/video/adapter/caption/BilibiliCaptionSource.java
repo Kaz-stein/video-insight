@@ -87,11 +87,12 @@ public class BilibiliCaptionSource {
                         "视频《" + title + "》没有公开 CC 字幕。请配置 ASR_ENABLED=true 和 ASR_API_KEY 后再试。");
             }
             Path audio = downloadAudio(bvid, cid, work);
-            Path wav = work.resolve("audio.wav");
+            Path mp3 = work.resolve("audio.mp3");
             run(List.of(tools.getFfmpeg(), "-y", "-i", audio.toString(),
-                    "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", wav.toString()),
+                    "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame",
+                    "-b:a", "48k", mp3.toString()),
                     work.resolve("audio.log"), 300);
-            return asrPort.transcribe(wav);
+            return asrPort.transcribe(mp3);
         } catch (Exception e) {
             if (e instanceof IllegalStateException state) {
                 throw state;

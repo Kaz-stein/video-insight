@@ -58,9 +58,10 @@ public class VideoCaptionSource {
         }
 
         try {
-            Path audio = work.resolve("audio.wav");
+            Path audio = work.resolve("audio.mp3");
             run(List.of(tools.getFfmpeg(), "-y", "-i", video.toString(),
-                    "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", audio.toString()),
+                    "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame",
+                    "-b:a", "48k", audio.toString()),
                     work.resolve("audio.log"), 300);
             if (!Files.isRegularFile(audio)) {
                 throw new IllegalStateException("ffmpeg 没有生成音频文件");

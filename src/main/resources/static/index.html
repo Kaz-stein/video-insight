@@ -120,11 +120,11 @@
 
                 <div id="linkPanel" class="source-panel">
                     <label class="field first-field" for="linkInput">
-                        <span>视频链接</span>
-                        <input id="linkInput" type="url" maxlength="1024"
-                               placeholder="粘贴 B 站 / YouTube 视频链接" autocomplete="off">
+                        <span>视频链接 / 分享文案</span>
+                        <textarea id="linkInput" rows="2" maxlength="2048"
+                                  placeholder="粘贴 B 站分享文案、链接或 BV 号"></textarea>
                     </label>
-                    <p class="source-hint">支持 B 站 / YouTube。只读取字幕，不下载整段视频；B 站 412 时需配置 cookies。</p>
+                    <p class="source-hint">会自动提取链接和 BV 号，忽略标题、share_source、vd_source 等无关文字。</p>
                 </div>
 
                 <div id="filePanel" class="source-panel" hidden>

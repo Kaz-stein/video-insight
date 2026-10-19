@@ -58,7 +58,8 @@ a {
 }
 
 button,
-input {
+input,
+textarea {
     font: inherit;
 }
 
@@ -762,7 +763,8 @@ main {
     font-size: 0.68rem;
 }
 
-.field input {
+.field input,
+.field textarea {
     width: 100%;
     padding: 12px 14px;
     border: 1px solid rgba(255, 255, 255, 0.15);
@@ -782,11 +784,19 @@ main {
         box-shadow 500ms var(--spring);
 }
 
-.field input::placeholder {
+.field textarea {
+    min-height: 58px;
+    resize: vertical;
+    line-height: 1.65;
+}
+
+.field input::placeholder,
+.field textarea::placeholder {
     color: rgba(255, 255, 255, 0.32);
 }
 
-.field input:focus {
+.field input:focus,
+.field textarea:focus {
     border-color: rgba(255, 255, 255, 0.35);
     background: rgba(255, 255, 255, 0.1);
     box-shadow: 0 0 0 3px rgba(228, 184, 99, 0.15),

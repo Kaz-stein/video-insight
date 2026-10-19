@@ -65,7 +65,7 @@ video:
     model: ${ASR_MODEL:whisper-1}
     language: ${ASR_LANGUAGE:zh}
     timeout-seconds: 300
-    max-audio-mb: 100
+    max-audio-mb: ${ASR_MAX_AUDIO_MB:100}
   rate-limit:
     # memory 便于本地/测试；多实例生产切 redis
     mode: ${RATE_LIMIT_MODE:memory}

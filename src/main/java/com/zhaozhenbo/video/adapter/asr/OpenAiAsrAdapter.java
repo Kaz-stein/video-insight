@@ -53,7 +53,7 @@ public class OpenAiAsrAdapter implements AsrPort {
             }
             String boundary = "----video-insight-" + UUID.randomUUID();
             byte[] audio = Files.readAllBytes(audioFile);
-            byte[] body = multipart(boundary, audioFile.getFileName().toString(), audio);
+        byte[] body = multipart(boundary, audioFile.getFileName().toString(), audio);
 
             HttpRequest request = HttpRequest.newBuilder(endpoint())
                     .timeout(Duration.ofSeconds(properties.getTimeoutSeconds()))
@@ -76,6 +76,7 @@ public class OpenAiAsrAdapter implements AsrPort {
     }
 
     private byte[] multipart(String boundary, String filename, byte[] audio) {
+        String contentType = filename.toLowerCase().endsWith(".mp3") ? "audio/mpeg" : "audio/wav";
         String head = "--" + boundary + "\r\n"
                 + "Content-Disposition: form-data; name=\"model\"\r\n\r\n"
                 + properties.getModel() + "\r\n"
@@ -87,7 +88,7 @@ public class OpenAiAsrAdapter implements AsrPort {
                 + "verbose_json\r\n"
                 + "--" + boundary + "\r\n"
                 + "Content-Disposition: form-data; name=\"file\"; filename=\"" + filename + "\"\r\n"
-                + "Content-Type: audio/wav\r\n\r\n";
+                + "Content-Type: " + contentType + "\r\n\r\n";
         String tail = "\r\n--" + boundary + "--\r\n";
         byte[] headBytes = head.getBytes(StandardCharsets.UTF_8);
         byte[] tailBytes = tail.getBytes(StandardCharsets.UTF_8);

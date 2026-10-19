@@ -97,10 +97,12 @@ $env:MQ_ENABLED='true'
 $env:LLM_PROVIDER='fake'          # 本地演示；真实模型用 http
 $env:FFMPEG_PATH='...\ffmpeg.exe'
 $env:YTDLP_PATH='...\yt-dlp.exe'
-# $env:YTDLP_COOKIES_FILE='...\cookies.txt'   # B 站 412 时需要
+# $env:YTDLP_COOKIES_FILE='...\cookies.txt'   # YouTube 需要时
 # $env:ASR_ENABLED='true'
+# $env:ASR_BASE_URL='https://api.openai.com'
 # $env:ASR_API_KEY='...'
 # $env:ASR_MODEL='whisper-1'
+# $env:ASR_LANGUAGE='zh'
 $env:RATE_LIMIT_MODE='memory'     # 有 Redis 时用 redis
 # $env:RATE_LIMIT_CAPACITY='10'
 # $env:RATE_LIMIT_REFILL='2'
@@ -108,6 +110,21 @@ $env:RATE_LIMIT_MODE='memory'     # 有 Redis 时用 redis
 # $env:LLM_API_KEY='...'
 # $env:LLM_MODEL='deepseek-chat'
 ```
+
+ASR 是 **OpenAI 兼容**的 `/v1/audio/transcriptions` 接口，推荐用环境变量配置：
+
+```powershell
+$env:ASR_ENABLED='true'
+$env:ASR_BASE_URL='https://api.openai.com'   # 或兼容网关
+$env:ASR_API_KEY='sk-...'
+$env:ASR_MODEL='whisper-1'
+$env:ASR_LANGUAGE='zh'
+# $env:ASR_MAX_AUDIO_MB='100'
+```
+
+配置后必须重启应用。视频没有内嵌字幕时，后端用 ffmpeg 抽 16kHz 单声道 MP3
+（48kbps，长音频体积更小），再调用该接口。阿里云/腾讯云原生 SDK 不是这个协议，
+需要一个 OpenAI 兼容网关，或另写 `AsrPort` 适配器。
 
 ### 4. 测试与运行
 

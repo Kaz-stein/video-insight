@@ -647,7 +647,10 @@ function bindEvents() {
     });
     els.linkInput.addEventListener('input', updateSubmitAvailability);
     els.linkInput.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' && els.linkInput.value.trim()) submit();
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter'
+                && els.linkInput.value.trim()) {
+            submit();
+        }
     });
 
     els.heroUpload.addEventListener('click', () => {

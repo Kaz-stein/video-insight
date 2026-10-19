@@ -115,7 +115,7 @@ public class TaskSubmissionService {
         if (url == null || url.isBlank()) {
             throw new IllegalArgumentException("视频链接不能为空");
         }
-        String normalized = url.strip();
+        String normalized = VideoUrlExtractor.extract(url);
         URI uri;
         try {
             uri = URI.create(normalized);
@@ -140,7 +140,10 @@ public class TaskSubmissionService {
         task.setSourceRef(normalized);
         task.setFingerprint(fingerprint);
         task.setParamsHash(paramsHash);
-        task.setTitle(title == null || title.isBlank() ? linkTitle(uri) : title.strip());
+        String sharedTitle = VideoUrlExtractor.extractTitle(url);
+        task.setTitle(title == null || title.isBlank()
+                ? (sharedTitle == null ? linkTitle(uri) : sharedTitle)
+                : title.strip());
         task.setStatus(TaskStatus.PENDING);
         task = tasks.save(task);
         enqueue(task.getId());
