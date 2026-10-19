@@ -51,6 +51,8 @@ $env:Path = "C:\Windows\System32;C:\Windows;" + $env:Path
 - 限流：默认 `RATE_LIMIT_MODE=memory`；真实 Redis 用 `RATE_LIMIT_MODE=redis`，
   再配 `RATE_LIMIT_CAPACITY` / `RATE_LIMIT_REFILL`
 - 评测：应用启动后跑 `tools/eval/run.ps1 -BaseUrl http://127.0.0.1:8080`
+- 前端：`src/main/resources/static/`，启动后访问 `http://localhost:8080/`；
+  演示自动跑：`http://localhost:8080/?demo=1`
 - **RocketMQ 5.5.1 的磁盘水位硬上限是 90%**：`CleanCommitLogService` 把
   `diskSpaceWarningLevelRatio` 夹在 0.90，配置调高无效；broker 所在盘超过 90% 会进入只读，
   表现为发送时报 `service not available ... disk is full`

@@ -2,8 +2,8 @@
 
 把长视频变成**每条要点都能回跳原片时间点**的 Markdown 笔记。
 
-> 当前状态：T1–T7 已完成（解析 → 切段 → 四步 Agent → 证据校验 → 成稿 → HTTP API → 评测/限流）。
-> 前端播放器还在路上。
+> 当前状态：T1–T7 + 前端工作台已完成（解析 → 切段 → 四步 Agent → 证据校验 → 成稿 → API → 评测/限流 → 夜航玻璃界面）。
+> 播放器同步与 ASR/OCR 还在路线图上。
 
 ## 为什么做这个
 
@@ -14,6 +14,16 @@
 - 引用必须能在该时间区间的原文里找到
 - 用 3-gram 重合度计算证据强度，低于阈值直接剔除
 - Critic 再做一层语义审查；Critic 不可用时全部降级为“模型推断”
+
+## 界面
+
+启动应用后打开 <http://localhost:8080/>。页面使用夜航玻璃拟态：深墨夜景、柔和光源、无色玻璃、香槟金单一强调色，以及一条可点击的“证据光轨”。
+
+![桌面端](docs/screenshots/desktop.png)
+
+![移动端](docs/screenshots/mobile.png)
+
+想直接看一次完整流程，打开 <http://localhost:8080/?demo=1>，页面会自动提交内置示例字幕。
 
 ## 当前能力
 
@@ -52,6 +62,7 @@ RocketMQ: video-task 主题
 - MySQL 8（JPA + `JdbcTemplate` 读写 JSON artifact）
 - RocketMQ 5.5.1（经典客户端）
 - Redis（令牌桶；无 Redis 时可用内存实现）
+- 前端：原生 HTML / CSS / JavaScript，无构建链
 - Jackson 3
 - JUnit 5 + AssertJ + H2（测试）
 
@@ -149,12 +160,12 @@ $env:MYSQL_IT='true'; mvn -Dtest=MysqlArtifactStoreIT test
 
 里程碑固定为：
 
-- 分支：`milestone/t7-2026-10-19`
-- 标签：`milestone-t7-2026-10-19`
+- 分支：`milestone/frontend-2026-10-19`
+- 标签：`milestone-frontend-2026-10-19`
 
 ```powershell
 git fetch --tags
-git switch -c rollback/t7 milestone-t7-2026-10-19
+git switch -c rollback/frontend milestone-frontend-2026-10-19
 ```
 
 把 `main` 强制拉回该点前请先备份分支，详见 [CHANGELOG.md](CHANGELOG.md)。

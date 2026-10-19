@@ -1,5 +1,34 @@
 # 变更记录
 
+## 2026-10-19 — 前端工作台（夜航玻璃拟态）
+
+Tag：`milestone-frontend-2026-10-19`
+
+### 已完成
+
+- `src/main/resources/static/` 单页工作台，无前端构建链
+- 上传/拖拽 SRT/VTT、标题输入、示例字幕、六阶段进度
+- 笔记渲染：摘要、章节、要点、时间轴、原文展开、未通过校验
+- 点击时间点更新“原片位置”读数，支持下载 Markdown
+- 429 限流提示与 FAILED 断点重试
+- Nocturne Glassmorphism：深墨夜景 + 光源光斑 + 7.5% 白玻璃 + 60/30px 模糊 +
+  180% 饱和 + 方向性阴影 + 2.8% 噪点 + 单一香槟金强调色
+
+### 验证
+
+- `node --check` 通过
+- 真实 MySQL + RocketMQ + FakeLLM：`/?demo=1` 自动跑完并渲染笔记
+- Puppeteer 计算样式：桌面 blur(60px) saturate(1.8)，移动端 blur(30px)；
+  1440 / 390 宽度 `scrollWidth == viewport`，无横向溢出
+- 浏览器控制台无错误
+
+### 回退
+
+```powershell
+git fetch --tags
+git switch -c rollback/frontend milestone-frontend-2026-10-19
+```
+
 ## 2026-10-19 — T7 评测与限流
 
 Tag：`milestone-t7-2026-10-19`

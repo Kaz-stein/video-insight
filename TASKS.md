@@ -101,6 +101,18 @@
 - 验证：真实 Redis 容量 2，前两次 202，第三次 429，`Retry-After=9991`，
   Redis key 的 tokens/TTL 可查；44 项测试通过（1 项可选 MQ 冒烟默认跳过）
 
-## 明确不在本轮
+## T8 前端工作台 ✅
 
-ASR 真机接入 · 画面 OCR · B 站链接抓取（只留适配器骨架）· 邮件投递 · Docker · MQ · 前端
+- 目标：把 API 能力变成可用的单页工作台，视觉严格遵循 Nocturne Glassmorphism
+- 范围：`src/main/resources/static/`（index.html + app.css + app.js）
+- 验收：
+  - 上传/拖拽 SRT/VTT、标题输入、示例字幕
+  - 六阶段进度、DONE 后渲染摘要/章节/要点/时间轴
+  - 点击时间显示原片位置，展开原文，下载 .md
+  - 429 限流提示、FAILED 断点重试
+  - 1440 / 390 宽度无横向溢出；浏览器控制台无错误
+  - 计算样式：玻璃 7.5% 白、blur 60/30px、saturate 180%、香槟金 CTA
+
+## 仍不在本轮
+
+ASR 真机接入 · 画面 OCR · B 站链接抓取 · 邮件投递 · Docker · 播放器同步
