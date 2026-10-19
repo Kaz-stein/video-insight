@@ -612,12 +612,68 @@ function renderMarkdownInto(container, markdown) {
     container.replaceChildren();
     if (!markdown) return;
 
+    const lines = String(markdown).split(/\r?\n/);
     let list = null;
+    let inCode = false;
+    let codeLang = '';
+    let codeBuf = [];
     const resetList = () => { list = null; };
 
-    String(markdown).split(/\r?\n/).forEach((raw) => {
+    for (let i = 0; i < lines.length; i++) {
+        const raw = lines[i];
         const line = raw.trim();
-        if (!line) { resetList(); return; }
+
+        // 代码围栏：原样保留缩进和符号，不能按 markdown 解析
+        if (line.startsWith('```')) {
+            if (inCode) {
+                const pre = document.createElement('pre');
+                const code = document.createElement('code');
+                if (codeLang) code.dataset.lang = codeLang;
+                code.textContent = codeBuf.join('\n');
+                pre.appendChild(code);
+                container.appendChild(pre);
+                inCode = false; codeBuf = []; codeLang = '';
+            } else {
+                inCode = true; codeLang = line.slice(3).trim(); codeBuf = [];
+            }
+            resetList();
+            continue;
+        }
+        if (inCode) { codeBuf.push(raw); continue; }
+
+        // 表格：当前行是 |...| 且下一行是分隔行
+        if (line.startsWith('|') && lines[i + 1] && /^\|[\s:|-]+\|$/.test(lines[i + 1].trim())) {
+            const table = document.createElement('table');
+            const thead = document.createElement('thead');
+            const headRow = document.createElement('tr');
+            splitTableRow(line).forEach((cell) => {
+                const th = document.createElement('th');
+                th.textContent = cell;
+                headRow.appendChild(th);
+            });
+            thead.appendChild(headRow);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            i += 2;
+            while (i < lines.length && lines[i].trim().startsWith('|')) {
+                const row = document.createElement('tr');
+                splitTableRow(lines[i]).forEach((cell) => {
+                    const td = document.createElement('td');
+                    td.textContent = cell;
+                    row.appendChild(td);
+                });
+                tbody.appendChild(row);
+                i++;
+            }
+            i--;
+            table.appendChild(tbody);
+            container.appendChild(table);
+            resetList();
+            continue;
+        }
+
+        if (!line) { resetList(); continue; }
 
         const heading = line.match(/^(#{1,3})\s+(.*)$/);
         if (heading) {
@@ -626,7 +682,7 @@ function renderMarkdownInto(container, markdown) {
             node.textContent = heading[2];
             container.appendChild(node);
             resetList();
-            return;
+            continue;
         }
 
         const bullet = line.match(/^[-*]\s+(.*)$/);
@@ -640,7 +696,7 @@ function renderMarkdownInto(container, markdown) {
             const li = document.createElement('li');
             li.textContent = (bullet || numbered)[1];
             list.appendChild(li);
-            return;
+            continue;
         }
 
         const paragraph = document.createElement('p');
@@ -657,7 +713,11 @@ function renderMarkdownInto(container, markdown) {
         });
         container.appendChild(paragraph);
         resetList();
-    });
+    }
+}
+
+function splitTableRow(line) {
+    return line.replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim());
 }
 
 function renderPoint(point) {

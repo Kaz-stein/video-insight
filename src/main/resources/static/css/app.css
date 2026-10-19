@@ -1103,6 +1103,42 @@ main {
     color: var(--text-soft, rgba(255, 255, 255, 0.82));
 }
 
+.note-markdown pre {
+    margin: 4px 0;
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.28);
+    overflow-x: auto;
+}
+
+.note-markdown code {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    line-height: 1.6;
+    color: #cfe6ff;
+    white-space: pre;
+}
+
+.note-markdown table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.76rem;
+}
+
+.note-markdown th,
+.note-markdown td {
+    padding: 7px 9px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    text-align: left;
+    vertical-align: top;
+}
+
+.note-markdown th {
+    background: rgba(255, 255, 255, 0.05);
+    font-weight: 600;
+}
+
 .note-summary {
     max-width: 65ch;
     margin: 24px 0 0;
