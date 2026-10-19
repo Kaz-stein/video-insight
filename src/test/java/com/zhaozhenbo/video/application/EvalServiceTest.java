@@ -38,8 +38,8 @@ class EvalServiceTest {
     @Test
     @DisplayName("2 GROUNDED + 1 INFERRED + 1 REJECTED：可回溯率 0.5，无依据率 0.25")
     void computesMetrics() throws Exception {
-        LocalDateTime created = LocalDateTime.now().minusSeconds(2);
-        LocalDateTime updated = LocalDateTime.now();
+        LocalDateTime updated = LocalDateTime.of(2026, 10, 19, 12, 0, 0);
+        LocalDateTime created = updated.minusSeconds(2);
         jdbc.update("""
                 insert into video_task
                     (id, user_id, source_type, source_ref, fingerprint, params_hash, title,

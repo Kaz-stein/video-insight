@@ -6,6 +6,7 @@ import com.zhaozhenbo.video.adapter.caption.LinkCaptionSource;
 import com.zhaozhenbo.video.adapter.caption.VideoCaptionSource;
 import com.zhaozhenbo.video.adapter.caption.BilibiliCaptionSource;
 import com.zhaozhenbo.video.adapter.asr.OpenAiAsrAdapter;
+import com.zhaozhenbo.video.adapter.asr.SiliconFlowAsrAdapter;
 import com.zhaozhenbo.video.adapter.llm.FakeLlmAdapter;
 import com.zhaozhenbo.video.adapter.llm.HttpLlmAdapter;
 import com.zhaozhenbo.video.adapter.llm.LlmProperties;
@@ -42,7 +43,12 @@ import tools.jackson.databind.ObjectMapper;
 public class PipelineHandlerConfig {
 
     @Bean
-    public AsrPort asrPort(AsrProperties properties, ObjectMapper mapper) {
+    public AsrPort asrPort(AsrProperties properties,
+                           ExternalToolsProperties tools,
+                           ObjectMapper mapper) {
+        if ("siliconflow".equalsIgnoreCase(properties.getProvider())) {
+            return new SiliconFlowAsrAdapter(properties, tools, mapper);
+        }
         return new OpenAiAsrAdapter(properties, mapper);
     }
 

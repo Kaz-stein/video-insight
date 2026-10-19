@@ -126,6 +126,21 @@ $env:ASR_LANGUAGE='zh'
 （48kbps，长音频体积更小），再调用该接口。阿里云/腾讯云原生 SDK 不是这个协议，
 需要一个 OpenAI 兼容网关，或另写 `AsrPort` 适配器。
 
+国内网络优先可以切硅基流动：
+
+```powershell
+$env:ASR_ENABLED='true'
+$env:ASR_PROVIDER='siliconflow'
+$env:ASR_BASE_URL='https://api.siliconflow.cn/v1'
+$env:ASR_API_KEY='sk-...'
+$env:ASR_MODEL='FunAudioLLM/SenseVoiceSmall'
+$env:ASR_CHUNK_SECONDS='60'
+```
+
+硅基流动返回纯文本、不带句级 segments，所以适配器会把音频按 60 秒切片，
+用切片起止时间生成证据时间戳，精度约 ±60 秒。需要逐句精确时间戳时，
+使用 Whisper 系接口（`ASR_PROVIDER=openai`）或接阿里云/腾讯云原生时间戳。
+
 ### 4. 测试与运行
 
 ```powershell
