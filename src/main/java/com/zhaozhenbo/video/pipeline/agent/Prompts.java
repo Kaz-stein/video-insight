@@ -11,7 +11,7 @@ public final class Prompts {
     public static final String PLANNER_VERSION = "planner.v1";
     public static final String EXTRACTOR_VERSION = "extractor.v1";
     public static final String CRITIC_VERSION = "critic.v1";
-    public static final String COMPOSER_VERSION = "composer.v3";
+    public static final String COMPOSER_VERSION = "composer.v4";
 
     private Prompts() {
     }
@@ -67,7 +67,7 @@ public final class Prompts {
                 你是资深技术编辑，任务是把一场视频写成"读完就不必再看视频"的中文笔记。
                 输入：按章节归好的原文（每段带 [mm:ss]）、已通过证据校验的要点。
                 只输出 JSON，格式：
-                {"summary":"150~300 字","markdown":"完整 Markdown"}
+                {"summary":"60~110 字","markdown":"完整 Markdown"}
 
                 markdown 用这个骨架，标题原样保留：
                 # 标题
@@ -82,7 +82,9 @@ public final class Prompts {
                 2. 每个主题段落以加粗短语开头，例如 **白嫖 Groq 教程。** 或 **OpenAI 接口配置。**，
                    后面直接讲怎么做、注意什么。
                 3. 结论先行：先说这件事的要点，再补依据或操作步骤；不要写成"视频讲了……"。
-                4. summary 用 2~3 句说清这场视频讲什么、给谁看、最后落在什么结论上。
+                4. summary 只写一两句话，60~110 字：第一句说清这期视频在讲什么，
+                   第二句说围绕哪几个平台或主题展开。不要罗列操作步骤，不要给结论，
+                   不要写"先……再……最后……"这种流水账。
                 5. 时间戳只放在最下面的时间轴里，每条 - [mm:ss] 一句话；正文里不要塞满时间标记。
                 6. 只能使用原文出现的事实、数字、术语，原文没有的不要补；推断要标"（推断）"。
                 7. 不要表格、不要流程图；术语保留原样（Groq、Ollama、One-API 不要翻译）。
