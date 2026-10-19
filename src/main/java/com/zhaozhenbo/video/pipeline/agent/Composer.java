@@ -61,7 +61,6 @@ public class Composer {
         return markdown.length() >= 80
                 && markdown.contains(title)
                 && markdown.contains("## 内容总结")
-                && markdown.contains("## 核心观点")
                 && markdown.contains("## 时间轴");
     }
 

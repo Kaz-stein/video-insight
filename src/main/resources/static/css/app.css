@@ -1068,6 +1068,41 @@ main {
 .history-item .h-state[data-state='RUNNING'],
 .history-item .h-state[data-state='PENDING'] { color: #ffcf8a; }
 
+.note-markdown {
+    margin: 18px 0 8px;
+    display: grid;
+    gap: 10px;
+}
+
+.note-markdown h2,
+.note-markdown h3,
+.note-markdown h4 {
+    margin: 14px 0 2px;
+    font-size: 0.95rem;
+    letter-spacing: 0.01em;
+}
+
+.note-markdown p {
+    margin: 0;
+    font-size: 0.86rem;
+    line-height: 1.85;
+    color: var(--text-soft, rgba(255, 255, 255, 0.82));
+}
+
+.note-markdown strong {
+    color: var(--text, #fff);
+    font-weight: 600;
+}
+
+.note-markdown ul,
+.note-markdown ol {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 0.84rem;
+    line-height: 1.8;
+    color: var(--text-soft, rgba(255, 255, 255, 0.82));
+}
+
 .note-summary {
     max-width: 65ch;
     margin: 24px 0 0;

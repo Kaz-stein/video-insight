@@ -64,6 +64,7 @@ const els = {
     noteTitle: $('#noteTitle'),
     noteMeta: $('#noteMeta'),
     noteSummary: $('#noteSummary'),
+    noteMarkdown: $('#noteMarkdown'),
     noteBody: $('#noteBody'),
     rejectedBlock: $('#rejectedBlock'),
     rejectedList: $('#rejectedList'),
@@ -519,6 +520,7 @@ function renderNote(note, task) {
     els.downloadBtn.disabled = false;   // 上一次任务失败时被禁用过，这里恢复
     els.noteTitle.textContent = task.title || '视频笔记';
     els.noteSummary.textContent = note.summary || '这份笔记暂时没有摘要。';
+    renderMarkdownInto(els.noteMarkdown, note.markdown);
     els.noteMeta.replaceChildren();
 
     // provider=fake 时后端会返回 offline-fake，这里必须显式提示，
@@ -600,6 +602,62 @@ function videoJumpUrl(ms) {
     const base = ref.split('#')[0];
     const sep = base.includes('?') ? '&' : '?';
     return `${base}${sep}t=${seconds}`;
+}
+
+/**
+ * 极简 Markdown 渲染：只支持标题、有序/无序列表、段落和 **加粗**。
+ * 全部用 textContent 构造节点，模型输出不经过 innerHTML，避免注入。
+ */
+function renderMarkdownInto(container, markdown) {
+    container.replaceChildren();
+    if (!markdown) return;
+
+    let list = null;
+    const resetList = () => { list = null; };
+
+    String(markdown).split(/\r?\n/).forEach((raw) => {
+        const line = raw.trim();
+        if (!line) { resetList(); return; }
+
+        const heading = line.match(/^(#{1,3})\s+(.*)$/);
+        if (heading) {
+            const tag = heading[1].length === 1 ? 'h2' : heading[1].length === 2 ? 'h3' : 'h4';
+            const node = document.createElement(tag);
+            node.textContent = heading[2];
+            container.appendChild(node);
+            resetList();
+            return;
+        }
+
+        const bullet = line.match(/^[-*]\s+(.*)$/);
+        const numbered = line.match(/^\d+[.)]\s+(.*)$/);
+        if (bullet || numbered) {
+            const wanted = bullet ? 'ul' : 'ol';
+            if (!list || list.tagName.toLowerCase() !== wanted) {
+                list = document.createElement(wanted);
+                container.appendChild(list);
+            }
+            const li = document.createElement('li');
+            li.textContent = (bullet || numbered)[1];
+            list.appendChild(li);
+            return;
+        }
+
+        const paragraph = document.createElement('p');
+        // 把 **加粗** 拆成 strong 节点，其余保持纯文本
+        line.split(/\*\*/).forEach((part, index) => {
+            if (!part) return;
+            if (index % 2 === 1) {
+                const strong = document.createElement('strong');
+                strong.textContent = part;
+                paragraph.appendChild(strong);
+            } else {
+                paragraph.appendChild(document.createTextNode(part));
+            }
+        });
+        container.appendChild(paragraph);
+        resetList();
+    });
 }
 
 function renderPoint(point) {
