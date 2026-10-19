@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 内存队列：只用于本地测试/无 broker 的开发环境。
@@ -43,6 +44,10 @@ public class InMemoryTaskQueueAdapter implements TaskQueuePort {
 
     public TaskMessage poll() {
         return queue.poll();
+    }
+
+    public TaskMessage poll(long timeout, TimeUnit unit) throws InterruptedException {
+        return queue.poll(timeout, unit);
     }
 
     public int size() {

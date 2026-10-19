@@ -86,6 +86,7 @@ video:
   mq:
     # 本地默认关闭，避免没启动 broker 时应用起不来；生产设 MQ_ENABLED=true
     enabled: ${MQ_ENABLED:false}
+    in-memory-worker: ${MQ_IN_MEMORY_WORKER:true}
     namesrv-addr: ${MQ_NAMESRV:127.0.0.1:9876}
     topic: video-task
     dlq-topic: "%DLQ%video-task"

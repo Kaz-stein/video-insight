@@ -19,5 +19,6 @@ video:
     real-handlers: false
   mq:
     enabled: false
+    in-memory-worker: false
     compensation-interval-ms: 3600000
     pending-grace-seconds: 60
