@@ -107,6 +107,12 @@ if (-not $env:YTDLP_PATH) {
     $env:YTDLP_PATH = 'C:\Users\pence\Downloads\ytdlp-interface\yt-dlp.exe'
 }
 
+# 填了 key 却忘了改 provider 时自动纠正，否则会出现"key 填了但笔记还是抄原句"的困惑
+if ($env:LLM_API_KEY -and $env:LLM_PROVIDER -eq 'fake') {
+    $env:LLM_PROVIDER = 'http'
+    Write-Host "[i] 检测到 LLM_API_KEY 非空，自动把 LLM_PROVIDER 从 fake 切到 http" -ForegroundColor Yellow
+}
+
 # ---------- 4. 判断是否需要重新打包 ----------
 $jar = Join-Path $root 'target\video-insight-0.0.1-SNAPSHOT.jar'
 $needBuild = -not (Test-JarReady $jar)
