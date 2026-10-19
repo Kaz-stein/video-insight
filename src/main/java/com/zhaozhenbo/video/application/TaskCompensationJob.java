@@ -2,6 +2,7 @@ package com.zhaozhenbo.video.application;
 
 import com.zhaozhenbo.video.adapter.persistence.VideoTaskEntity;
 import com.zhaozhenbo.video.adapter.persistence.VideoTaskRepository;
+import com.zhaozhenbo.video.adapter.persistence.StageLogRepository;
 import com.zhaozhenbo.video.domain.TaskMessage;
 import com.zhaozhenbo.video.domain.TaskStatus;
 import com.zhaozhenbo.video.port.TaskQueuePort;
@@ -28,13 +29,16 @@ public class TaskCompensationJob {
 
     private final VideoTaskRepository tasks;
     private final TaskQueuePort queue;
+    private final StageLogRepository stageLogs;
     private final long pendingGraceSeconds;
 
     public TaskCompensationJob(VideoTaskRepository tasks,
                                TaskQueuePort queue,
+                               StageLogRepository stageLogs,
                                @Value("${video.mq.pending-grace-seconds:60}") long pendingGraceSeconds) {
         this.tasks = tasks;
         this.queue = queue;
+        this.stageLogs = stageLogs;
         this.pendingGraceSeconds = pendingGraceSeconds;
     }
 
@@ -46,7 +50,8 @@ public class TaskCompensationJob {
 
         for (VideoTaskEntity task : stale) {
             try {
-                queue.enqueue(new TaskMessage(task.getId(), 1));
+                int nextAttempt = Math.max(1, stageLogs.findMaxAttempt(task.getId()) + 1);
+                queue.enqueue(new TaskMessage(task.getId(), nextAttempt));
                 log.info("补偿投递任务 {}", task.getId());
             } catch (Exception e) {
                 // 保持 PENDING，下一轮继续补

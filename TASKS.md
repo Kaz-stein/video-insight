@@ -121,7 +121,7 @@
   - `POST /api/tasks/link` 接收视频链接
   - `upload_session` / `upload_chunk` 分片会话，8MB 分片、sha256、断点查询
   - `VideoCaptionSource`：ffmpeg 抽内嵌字幕，无字幕走云 ASR
-  - `LinkCaptionSource`：yt-dlp 只取字幕，支持 cookies
+  - B 站走 `pagelist/player/playurl` 公开 API；YouTube 走 yt-dlp
 - 前端：链接 / 上传文件双入口，视频分片进度与断点续传
 - 验收：
   - 2MB 视频分 2 片上传、重复片幂等、合并后任务 DONE

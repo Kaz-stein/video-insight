@@ -73,7 +73,7 @@ class PipelineChainTest {
 
         List<StageHandler> stages = List.of(
                 new FetchingStage(new DefaultCaptionResolver(
-                        new LocalCaptionSource(), null, null), artifacts),
+                        new LocalCaptionSource(), null, null, null), artifacts),
                 new SegmentingStage(segmenter, artifacts),
                 new PlanningStage(planner, artifacts),
                 new ExtractingStage(extractor, artifacts),

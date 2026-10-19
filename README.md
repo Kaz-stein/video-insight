@@ -36,7 +36,7 @@
 - 阶段产物落 MySQL `video_artifact`（JSON），键带 pipeline 版本
 - FakeLLM 离线测试 + OpenAI 兼容 HTTP 适配器（DeepSeek / Qwen / GLM）
 - HTTP API：上传字幕、查询任务、取笔记 JSON、下载 Markdown、失败重试
-- 视频链接：yt-dlp 只取字幕，不下载整段视频；B 站 412 时配置 cookies
+- 视频链接：B 站走公开 API（pagelist/player/playurl），YouTube 走 yt-dlp；都不下载整段视频
 - 视频文件：ffmpeg 抽内嵌字幕；没有字幕时调用 OpenAI 兼容的云 ASR
 - 分片上传：8MB 分片、分片 sha256、断点查询、整体合并校验
 - 评测接口：引用可回溯率、无依据率、平均端到端耗时
@@ -200,4 +200,5 @@ git switch -c rollback/frontend milestone-frontend-2026-10-19
 ## 说明
 
 视频内嵌字幕可直接解析；没有内嵌字幕时需要配置云 ASR。
-B 站链接实测可能触发 412，需要配置 `YTDLP_COOKIES_FILE`；画面 OCR 还没实现。
+B 站链接走公开 API，不再依赖 yt-dlp 的 412 链路；如果视频没有公开 CC 字幕，会明确提示配置 ASR。
+YouTube 链接仍走 yt-dlp，必要时配置 `YTDLP_COOKIES_FILE`；画面 OCR 还没实现。

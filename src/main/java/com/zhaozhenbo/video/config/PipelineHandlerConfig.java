@@ -4,6 +4,7 @@ import com.zhaozhenbo.video.adapter.caption.LocalCaptionSource;
 import com.zhaozhenbo.video.adapter.caption.DefaultCaptionResolver;
 import com.zhaozhenbo.video.adapter.caption.LinkCaptionSource;
 import com.zhaozhenbo.video.adapter.caption.VideoCaptionSource;
+import com.zhaozhenbo.video.adapter.caption.BilibiliCaptionSource;
 import com.zhaozhenbo.video.adapter.asr.OpenAiAsrAdapter;
 import com.zhaozhenbo.video.adapter.llm.FakeLlmAdapter;
 import com.zhaozhenbo.video.adapter.llm.HttpLlmAdapter;
@@ -48,11 +49,13 @@ public class PipelineHandlerConfig {
     @Bean
     public DefaultCaptionResolver captionResolver(ExternalToolsProperties tools,
                                                   AsrProperties asrProperties,
-                                                  AsrPort asrPort) {
+                                                  AsrPort asrPort,
+                                                  ObjectMapper mapper) {
         return new DefaultCaptionResolver(
                 new LocalCaptionSource(),
                 new VideoCaptionSource(tools, asrProperties, asrPort),
-                new LinkCaptionSource(tools));
+                new LinkCaptionSource(tools, asrProperties, asrPort),
+                new BilibiliCaptionSource(tools, asrProperties, asrPort, mapper));
     }
 
     @Bean

@@ -3,6 +3,7 @@ package com.zhaozhenbo.video.application;
 import com.zhaozhenbo.video.adapter.llm.LlmProperties;
 import com.zhaozhenbo.video.adapter.persistence.VideoTaskEntity;
 import com.zhaozhenbo.video.adapter.persistence.VideoTaskRepository;
+import com.zhaozhenbo.video.adapter.persistence.StageLogRepository;
 import com.zhaozhenbo.video.api.TaskNotFoundException;
 import com.zhaozhenbo.video.api.TaskNotRetryableException;
 import com.zhaozhenbo.video.domain.ArtifactKind;
@@ -44,17 +45,20 @@ public class TaskSubmissionService {
 
     private final VideoTaskRepository tasks;
     private final TaskQueuePort queue;
+    private final StageLogRepository stageLogs;
     private final LlmProperties llmProperties;
     private final Path uploadDir;
     private final long userId;
 
     public TaskSubmissionService(VideoTaskRepository tasks,
                                  TaskQueuePort queue,
+                                 StageLogRepository stageLogs,
                                  LlmProperties llmProperties,
                                  @Value("${video.upload-dir:data/uploads}") String uploadDir,
                                  @Value("${video.user-id:1}") long userId) {
         this.tasks = tasks;
         this.queue = queue;
+        this.stageLogs = stageLogs;
         this.llmProperties = llmProperties;
         this.uploadDir = Path.of(uploadDir).toAbsolutePath().normalize();
         this.userId = userId;
@@ -155,7 +159,9 @@ public class TaskSubmissionService {
             throw new TaskNotRetryableException("任务状态已变化，请刷新后再试");
         }
         try {
-            queue.enqueue(new TaskMessage(taskId, 1));
+            // 手动重试不能从 1 开始：stage_log 的唯一键是 (task, stage, attempt)
+            int nextAttempt = Math.max(1, stageLogs.findMaxAttempt(taskId) + 1);
+            queue.enqueue(new TaskMessage(taskId, nextAttempt));
         } catch (Exception e) {
             log.error("任务 {} 重试投递失败，等待补偿", taskId, e);
         }

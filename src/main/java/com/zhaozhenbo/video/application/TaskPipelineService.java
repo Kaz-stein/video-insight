@@ -65,8 +65,17 @@ public class TaskPipelineService {
     public void handle(TaskMessage message) {
         // 首次投递只能抢 PENDING；重试投递只能抢 FAILED。
         // 这样同一条消息被 broker 重复投递 3 次，也只有一次能进入执行。
-        TaskStatus expected = message.attempt() == 1 ? TaskStatus.PENDING : TaskStatus.FAILED;
-        int claimed = tasks.claim(message.taskId(), expected, TaskStatus.RUNNING, LocalDateTime.now());
+        int claimed;
+        if (message.attempt() == 1) {
+            claimed = tasks.claim(message.taskId(), TaskStatus.PENDING, TaskStatus.RUNNING, LocalDateTime.now());
+        } else {
+            // 自动重试时状态是 FAILED；手动重试接口会先把状态置为 PENDING。
+            // 两种都要能抢到，否则手动重试消息会被静默跳过。
+            claimed = tasks.claim(message.taskId(), TaskStatus.FAILED, TaskStatus.RUNNING, LocalDateTime.now());
+            if (claimed == 0) {
+                claimed = tasks.claim(message.taskId(), TaskStatus.PENDING, TaskStatus.RUNNING, LocalDateTime.now());
+            }
+        }
         if (claimed == 0) {
             log.info("跳过重复/过期消息 taskId={} attempt={}", message.taskId(), message.attempt());
             return;
@@ -124,13 +133,17 @@ public class TaskPipelineService {
         String error = failure.describe();
         tasks.markFailed(task.getId(), TaskStatus.FAILED, error, LocalDateTime.now());
 
-        if (message.attempt() >= MAX_ATTEMPTS) {
+        int failedCount = failure.stage == null
+                ? message.attempt()
+                : (int) stageLogs.countByTaskIdAndStageAndStatus(task.getId(), failure.stage, "FAILED");
+        if (failedCount >= MAX_ATTEMPTS) {
             queue.sendToDeadLetter(message, error);
-            log.error("任务 {} 重试 {} 次仍失败，进入死信: {}", task.getId(), MAX_ATTEMPTS - 1, error, failure.getCause());
+            log.error("任务 {} 阶段 {} 累计失败 {} 次，进入死信: {}",
+                    task.getId(), failure.stage, failedCount, error, failure.getCause());
             return;
         }
 
-        RetryDelay delay = RetryDelay.afterFailure(message.attempt());
+        RetryDelay delay = RetryDelay.afterFailure(Math.max(1, failedCount));
         try {
             queue.enqueueRetry(message.nextAttempt(), delay);
             log.warn("任务 {} 第 {} 次尝试失败，{} 后重试: {}",

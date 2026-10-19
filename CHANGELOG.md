@@ -21,7 +21,8 @@ Tag：`milestone-video-2026-10-19`
 
 ### 已知限制
 
-- B 站实测可能 412，需要配置 cookies.txt
+- B 站改走公开 API，避免 yt-dlp 412；无公开 CC 字幕时需配置 ASR
+- YouTube 仍走 yt-dlp，必要时配置 cookies.txt
 - 没有内嵌字幕且未配置 ASR 时任务会明确失败，不生成空笔记
 
 ### 回退
