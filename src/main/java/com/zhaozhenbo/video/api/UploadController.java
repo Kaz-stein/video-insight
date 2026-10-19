@@ -50,7 +50,8 @@ public class UploadController {
     public ResponseEntity<TaskResponse> complete(@PathVariable String id,
                                                  @RequestBody(required = false) CompleteUploadRequest request) {
         String title = request == null ? null : request.title();
+        String expectedSha256 = request == null ? null : request.expectedSha256();
         return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(TaskResponse.from(uploads.complete(id, title)));
+                .body(TaskResponse.from(uploads.complete(id, expectedSha256, title)));
     }
 }

@@ -11,6 +11,7 @@ const STAGES = [
 
 const STAGE_NAMES = STAGES.map(([name]) => name);
 const CHUNK_SIZE = 8 * 1024 * 1024;
+const UPLOAD_CONCURRENCY = 3;
 const VIDEO_EXT = ['.mp4', '.mkv', '.mov', '.webm', '.m4v', '.avi', '.flv'];
 const SUBTITLE_EXT = ['.srt', '.vtt'];
 
@@ -176,7 +177,7 @@ function pickFile(file) {
     els.fileName.hidden = false;
     els.dropTitle.textContent = state.fileKind === 'video' ? '视频已就位' : '字幕已就位';
     els.dropHint.textContent = state.fileKind === 'video'
-        ? '将按 8MB 分片上传，可断点续传'
+        ? '将按 8MB 分片、3 路并发上传，可断点续传'
         : '字幕将单请求上传';
     if (!els.titleInput.value.trim()) {
         els.titleInput.value = file.name.replace(/\.(mp4|mkv|mov|webm|m4v|avi|flv|srt|vtt)$/i, '');
@@ -331,19 +332,39 @@ async function chunkedUpload(file) {
         const status = await statusResponse.json();
         const uploaded = new Set(status.uploadedChunks || []);
 
+        const pending = [];
         for (let index = 0; index < totalChunks; index++) {
-            if (uploaded.has(index)) {
-                showProgress((index + 1) / totalChunks);
-                continue;
-            }
-            const start = index * CHUNK_SIZE;
-            const blob = file.slice(start, Math.min(file.size, start + CHUNK_SIZE));
-            const buffer = await blob.arrayBuffer();
-            const checksum = await sha256Hex(buffer);
-            await putChunk(uploadId, index, blob, checksum);
-            showProgress((index + 1) / totalChunks);
-            setMessage(`正在上传分片 ${index + 1} / ${totalChunks}…`);
+            if (!uploaded.has(index)) pending.push(index);
         }
+
+        // 3 路并发：串行传 1GB（约 128 片）要等每一片的往返时延，
+        // 并发只提升吞吐，不改变"按 index 落盘"的语义，所以合并顺序仍然安全。
+        let finished = uploaded.size;
+        showProgress(totalChunks === 0 ? 1 : finished / totalChunks);
+        if (pending.length === 0) {
+            setMessage('所有分片都已在服务端，直接合并…');
+        }
+        let cursor = 0;
+        async function uploadWorker() {
+            while (true) {
+                const next = cursor++;
+                if (next >= pending.length) return;
+                const index = pending[next];
+                const start = index * CHUNK_SIZE;
+                const blob = file.slice(start, Math.min(file.size, start + CHUNK_SIZE));
+                const buffer = await blob.arrayBuffer();
+                const checksum = await sha256Hex(buffer);
+                await putChunk(uploadId, index, blob, checksum);
+                finished++;
+                showProgress(finished / totalChunks);
+                setMessage(`正在上传分片 ${finished} / ${totalChunks}…`);
+            }
+        }
+        const workers = Array.from(
+            { length: Math.min(UPLOAD_CONCURRENCY, pending.length) },
+            () => uploadWorker(),
+        );
+        await Promise.all(workers);
 
         setMessage('分片已传完，正在合并并创建任务…');
         const response = await fetch(`/api/uploads/${uploadId}/complete`, {
@@ -478,6 +499,15 @@ function renderNote(note, task) {
     els.noteTitle.textContent = task.title || '视频笔记';
     els.noteSummary.textContent = note.summary || '这份笔记暂时没有摘要。';
     els.noteMeta.replaceChildren();
+
+    // provider=fake 时后端会返回 offline-fake，这里必须显式提示，
+    // 否则用户会以为这些"抄原句"的要点是模型写的总结。
+    if (String(note.model || '').startsWith('offline')) {
+        const warn = document.createElement('span');
+        warn.className = 'meta-chip is-warn';
+        warn.textContent = '离线抽取模式 · 未接入大模型';
+        els.noteMeta.appendChild(warn);
+    }
 
     [
         `模型 ${note.model || '未知'}`,

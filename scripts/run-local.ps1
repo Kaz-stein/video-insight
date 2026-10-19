@@ -22,8 +22,37 @@ $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $root
 
+# 让重定向到文件的日志也是 UTF-8，避免 cmd 里看中文乱码
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+
 function Write-Step($text) { Write-Host "==> $text" -ForegroundColor Cyan }
 function Write-Fail($text) { Write-Host "[x] $text" -ForegroundColor Red; exit 1 }
+
+<#
+    判断 jar 是否"可启动"。
+
+    只比时间戳不够：mvn 会先产出普通 jar，再做 repackage 加上启动入口。
+    如果 repackage 失败（Windows 上旧进程锁着 jar 时就会这样），
+    磁盘上就留下一个"时间很新但没有 Main-Class"的残次品。
+#>
+function Test-JarReady($path) {
+    if (-not (Test-Path -LiteralPath $path)) { return $false }
+    try {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($path)
+        try {
+            $entry = $zip.Entries | Where-Object { $_.FullName -eq 'META-INF/MANIFEST.MF' } | Select-Object -First 1
+            if (-not $entry) { return $false }
+            $reader = New-Object System.IO.StreamReader($entry.Open())
+            try { $manifest = $reader.ReadToEnd() } finally { $reader.Dispose() }
+            return ($manifest -match 'Main-Class:')
+        } finally {
+            $zip.Dispose()
+        }
+    } catch {
+        return $false
+    }
+}
 
 # ---------- 1. 读取 .env.local ----------
 # 只做 KEY=VALUE 解析，支持注释、export 前缀、成对引号
@@ -78,9 +107,9 @@ if (-not $env:YTDLP_PATH) {
     $env:YTDLP_PATH = 'C:\Users\pence\Downloads\ytdlp-interface\yt-dlp.exe'
 }
 
-# ---------- 4. jar 不存在或源码更新过就自动打包 ----------
+# ---------- 4. 判断是否需要重新打包 ----------
 $jar = Join-Path $root 'target\video-insight-0.0.1-SNAPSHOT.jar'
-$needBuild = -not (Test-Path $jar)
+$needBuild = -not (Test-JarReady $jar)
 
 if (-not $needBuild) {
     $jarTime = (Get-Item $jar).LastWriteTimeUtc
@@ -95,6 +124,40 @@ if (-not $needBuild) {
     }
 }
 
+# ---------- 5. 端口占用检查（必须放在打包之前） ----------
+# Windows 会锁住正在运行的 jar，mvn repackage 时改名会直接失败。
+# 所以"要重新打包"和"要重启"一样，都得先把旧实例停掉。
+$port = 8080
+$listener = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
+    Select-Object -First 1
+
+if ($listener) {
+    $owner = $listener.OwningProcess
+    $proc = Get-CimInstance Win32_Process -Filter "ProcessId=$owner" -ErrorAction SilentlyContinue
+    $cmdLine = if ($proc) { [string]$proc.CommandLine } else { '' }
+
+    if ($cmdLine -like '*video-insight*') {
+        if ($Restart -or $needBuild) {
+            $why = if ($Restart) { '-Restart' } else { '源码有更新，需要重新打包' }
+            Write-Step "停止旧实例 PID=$owner（$why）"
+            Stop-Process -Id $owner -Force
+            for ($i = 0; $i -lt 10; $i++) {
+                Start-Sleep -Milliseconds 400
+                if (-not (Get-Process -Id $owner -ErrorAction SilentlyContinue)) { break }
+            }
+        } else {
+            Write-Host "[!] 8080 已经被本项目的旧实例占用（PID=$owner），没有再启动一份。" -ForegroundColor Yellow
+            Write-Host "    直接打开： http://localhost:8080" -ForegroundColor Yellow
+            Write-Host "    要重启请用： .\scripts\run-local.cmd -Restart" -ForegroundColor Yellow
+            exit 0
+        }
+    } else {
+        $pname = if ($proc) { $proc.Name } else { '未知进程' }
+        Write-Fail "8080 被其他程序占用：PID=$owner $pname，请先处理它"
+    }
+}
+
+# ---------- 6. 打包 ----------
 if ($needBuild -and -not $SkipBuild) {
     $mvn = $null
     $mvnCmd = Get-Command mvn -ErrorAction SilentlyContinue
@@ -108,37 +171,15 @@ if ($needBuild -and -not $SkipBuild) {
     Write-Step "开始打包：$mvn"
     & $mvn -B -DskipTests package
     if ($LASTEXITCODE -ne 0) { Write-Fail "打包失败（退出码 $LASTEXITCODE）" }
-}
-
-if (-not (Test-Path $jar)) { Write-Fail "找不到 $jar，请先执行 mvn -B -DskipTests package" }
-
-# ---------- 5. 端口占用检查 ----------
-$port = 8080
-$listener = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
-    Select-Object -First 1
-
-if ($listener) {
-    $owner = $listener.OwningProcess
-    $proc = Get-CimInstance Win32_Process -Filter "ProcessId=$owner" -ErrorAction SilentlyContinue
-    $cmdLine = if ($proc) { [string]$proc.CommandLine } else { '' }
-
-    if ($cmdLine -like '*video-insight*') {
-        if ($Restart) {
-            Write-Step "停止旧实例 PID=$owner（-Restart）"
-            Stop-Process -Id $owner -Force
-            Start-Sleep -Seconds 2
-        } else {
-            Write-Host "[!] 8080 已经被本项目的旧实例占用（PID=$owner），没有再启动一份。" -ForegroundColor Yellow
-            Write-Host "    直接打开： http://localhost:8080" -ForegroundColor Yellow
-            Write-Host "    要重启请用： .\scripts\run-local.cmd -Restart" -ForegroundColor Yellow
-            exit 0
-        }
-    } else {
-        $pname = if ($proc) { $proc.Name } else { '未知进程' }
-        Write-Fail "8080 被其他程序占用：PID=$owner $pname，请先处理它"
+    if (-not (Test-JarReady $jar)) {
+        Write-Fail "打包结束了，但 jar 里没有启动入口（repackage 没成功），请检查上面的 Maven 输出"
     }
 }
 
-# ---------- 6. 启动 ----------
+if (-not (Test-JarReady $jar)) {
+    Write-Fail "jar 不存在或不可启动：$jar。请执行 mvn -B -DskipTests package"
+}
+
+# ---------- 7. 启动 ----------
 Write-Step "启动 http://localhost:8080   (Ctrl+C 停止)"
 & $java -jar $jar

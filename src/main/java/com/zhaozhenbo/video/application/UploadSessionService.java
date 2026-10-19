@@ -145,6 +145,15 @@ public class UploadSessionService {
     }
 
     public VideoTaskEntity complete(String uploadId, String title) {
+        return complete(uploadId, null, title);
+    }
+
+    /**
+     * 合并分片并创建任务。
+     *
+     * @param expectedSha256 调用方给出的整文件 sha256；为空则跳过整文件校验
+     */
+    public VideoTaskEntity complete(String uploadId, String expectedSha256, String title) {
         Session session = load(uploadId);
         if ("COMPLETED".equals(session.status()) && session.taskId() != null) {
             return tasks.findById(session.taskId())
@@ -164,16 +173,16 @@ public class UploadSessionService {
         }
         try {
             Files.createDirectories(uploadDir);
-            try (OutputStream out = Files.newOutputStream(merged)) {
-                for (int i = 0; i < session.totalChunks(); i++) {
-                    Path part = sessionDir(uploadId).resolve(i + ".part");
-                    try (InputStream in = Files.newInputStream(part)) {
-                        in.transferTo(out);
-                    }
-                }
-            }
+            String actualSha256 = mergeChunks(uploadId, session.totalChunks(), merged);
             if (Files.size(merged) != session.totalSize()) {
                 throw new IllegalStateException("合并后文件大小不一致");
+            }
+            // 整文件校验：分片校验已经保证了每片内容，这里再兜一次"顺序错/拼接错"的底
+            if (expectedSha256 != null && !expectedSha256.isBlank()
+                    && !actualSha256.equalsIgnoreCase(expectedSha256.trim())) {
+                Files.deleteIfExists(merged);
+                jdbc.update("update upload_session set status = 'FAILED' where id = ?", uploadId);
+                throw new IntegrityException("整文件 sha256 不匹配，已丢弃合并结果");
             }
 
             String sourceType = isVideo(session.extension()) ? "VIDEO" : "SUBTITLE";
@@ -186,10 +195,31 @@ public class UploadSessionService {
                     """, task.getId(), uploadId);
             cleanup(sessionDir(uploadId));
             return task;
+        } catch (IntegrityException e) {
+            throw e;
         } catch (Exception e) {
             jdbc.update("update upload_session set status = 'FAILED' where id = ?", uploadId);
             throw new IllegalStateException("合并上传文件失败: " + e.getMessage(), e);
         }
+    }
+
+    /** 顺序拼接所有分片，边写边算整文件 sha256，避免再读一遍磁盘。 */
+    private String mergeChunks(String uploadId, int totalChunks, Path merged) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] buffer = new byte[1 << 16];
+        try (OutputStream out = Files.newOutputStream(merged)) {
+            for (int i = 0; i < totalChunks; i++) {
+                Path part = sessionDir(uploadId).resolve(i + ".part");
+                try (InputStream in = Files.newInputStream(part)) {
+                    int read;
+                    while ((read = in.read(buffer)) > 0) {
+                        digest.update(buffer, 0, read);
+                        out.write(buffer, 0, read);
+                    }
+                }
+            }
+        }
+        return HexFormat.of().formatHex(digest.digest());
     }
 
     private Session load(String uploadId) {
@@ -278,5 +308,17 @@ public class UploadSessionService {
             String status,
             Long taskId
     ) {
+    }
+
+    /**
+     * 合并出来的文件和调用方声明的哈希对不上。
+     *
+     * 继承 IllegalArgumentException，是为了让 ApiExceptionHandler 把它映射成 400，
+     * 而不是当成服务端故障的 500。
+     */
+    private static final class IntegrityException extends IllegalArgumentException {
+        IntegrityException(String message) {
+            super(message);
+        }
     }
 }

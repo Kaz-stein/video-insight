@@ -108,5 +108,51 @@ try {
 Write-Host "6) 错误校验和是否被拒绝: $rejected" -ForegroundColor Green
 if (-not $rejected) { throw "坏分片没被拒绝" }
 
-Write-Host "`n全部通过：断点续传、幂等重传、坏分片拦截都正常。" -ForegroundColor Cyan
-Write-Host "（会话保持 UPLOADING 状态，不会触发合并/任务，可直接忽略）" -ForegroundColor DarkGray
+# ---- 7. 整文件哈希不符时，complete 必须拒绝 ----
+$hashRejected = $false
+try {
+    Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/uploads/$uploadId/complete" `
+        -ContentType 'application/json' `
+        -Headers @{ 'X-User-Id' = '1' } `
+        -Body (@{ title = 'hash-mismatch'; expectedSha256 = ('0' * 64) } | ConvertTo-Json) | Out-Null
+} catch {
+    $hashRejected = $true
+}
+Write-Host "7) 整文件哈希不符是否被拒绝: $hashRejected" -ForegroundColor Green
+if (-not $hashRejected) { throw "整文件哈希不符没被拒绝" }
+
+# ---- 8. 正向对照：哈希正确时能合并出任务 ----
+$srt = @"
+1
+00:00:00,000 --> 00:00:05,000
+Hello world, this is a resume test.
+
+2
+00:00:05,000 --> 00:00:10,000
+The second cue keeps the pipeline happy.
+"@
+$srtBytes = [System.Text.Encoding]::UTF8.GetBytes($srt)
+$srtCreated = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/uploads" `
+    -ContentType 'application/json' `
+    -Headers @{ 'X-User-Id' = '1' } `
+    -Body (@{
+        fileName    = 'resume-positive-check.srt'
+        totalSize   = $srtBytes.Length
+        totalChunks = 1
+        chunkSize   = 1MB
+    } | ConvertTo-Json)
+$srtId = $srtCreated.uploadId
+
+Invoke-RestMethod -Method Put -Uri "$BaseUrl/api/uploads/$srtId/chunks/0" `
+    -ContentType 'application/octet-stream' `
+    -Headers @{ 'X-Chunk-SHA256' = (Get-Sha256 $srtBytes) } `
+    -Body $srtBytes -TimeoutSec 60 | Out-Null
+
+$task = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/uploads/$srtId/complete" `
+    -ContentType 'application/json' `
+    -Headers @{ 'X-User-Id' = '1' } `
+    -Body (@{ title = 'resume-positive-check'; expectedSha256 = (Get-Sha256 $srtBytes) } | ConvertTo-Json)
+Write-Host "8) 哈希正确时合并成功，生成任务 #$($task.id)" -ForegroundColor Green
+
+Write-Host "`n全部通过：断点续传、幂等重传、坏分片拦截、整文件哈希校验都正常。" -ForegroundColor Cyan
+Write-Host "（第 8 步会在任务列表里留下一条 resume-positive-check，可忽略）" -ForegroundColor DarkGray

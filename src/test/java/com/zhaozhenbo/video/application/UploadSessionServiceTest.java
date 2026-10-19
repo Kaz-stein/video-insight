@@ -73,6 +73,38 @@ class UploadSessionServiceTest {
                 .hasMessageContaining("sha256");
     }
 
+    @Test
+    @DisplayName("整文件 sha256 匹配时正常合并")
+    void completesWhenWholeFileHashMatches() throws Exception {
+        byte[] content = ("1\n00:00:00,000 --> 00:00:02,000\nhello\n")
+                .getBytes(StandardCharsets.UTF_8);
+        UploadStatusResponse created = uploads.create(
+                new CreateUploadRequest("hash-ok.srt", content.length, 1, 1024 * 1024));
+        uploads.putChunk(created.uploadId(), 0, content, sha256(content));
+
+        VideoTaskEntity task = uploads.complete(created.uploadId(), sha256(content), "哈希正确");
+
+        assertThat(task.getSourceType()).isEqualTo("SUBTITLE");
+        assertThat(Files.size(Path.of(task.getSourceRef()))).isEqualTo(content.length);
+        assertThat(uploads.status(created.uploadId()).status()).isEqualTo("COMPLETED");
+    }
+
+    @Test
+    @DisplayName("整文件 sha256 不匹配时丢弃合并结果并置为 FAILED")
+    void rejectsMismatchedWholeFileHash() throws Exception {
+        byte[] content = ("1\n00:00:00,000 --> 00:00:02,000\nhello\n")
+                .getBytes(StandardCharsets.UTF_8);
+        UploadStatusResponse created = uploads.create(
+                new CreateUploadRequest("hash-bad.srt", content.length, 1, 1024 * 1024));
+        uploads.putChunk(created.uploadId(), 0, content, sha256(content));
+
+        assertThatThrownBy(() -> uploads.complete(created.uploadId(), "0".repeat(64), "哈希错误"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("整文件 sha256");
+
+        assertThat(uploads.status(created.uploadId()).status()).isEqualTo("FAILED");
+    }
+
     private static String sha256(byte[] bytes) throws Exception {
         return HexFormat.of().formatHex(
                 MessageDigest.getInstance("SHA-256").digest(bytes));

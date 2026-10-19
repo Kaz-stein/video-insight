@@ -1005,6 +1005,12 @@ main {
     font-size: 0.6rem;
 }
 
+.meta-chip.is-warn {
+    border-color: rgba(255, 187, 92, 0.45);
+    background: rgba(255, 187, 92, 0.12);
+    color: #ffcf8a;
+}
+
 .note-summary {
     max-width: 65ch;
     margin: 24px 0 0;

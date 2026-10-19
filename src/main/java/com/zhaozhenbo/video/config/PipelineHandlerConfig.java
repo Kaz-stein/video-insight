@@ -132,6 +132,16 @@ public class PipelineHandlerConfig {
                                        ArtifactStorePort artifacts,
                                        NoteStorePort notes,
                                        LlmProperties properties) {
-        return new ComposingStage(composer, artifacts, notes, properties.getModel());
+        return new ComposingStage(composer, artifacts, notes, modelName(properties));
+    }
+
+    /**
+     * provider=fake 时不要冒充真实模型名（否则笔记里写着 deepseek-chat，
+     * 实际内容只是抄原句）。前端据此打出"离线抽取模式"提示。
+     */
+    private static String modelName(LlmProperties properties) {
+        return "fake".equalsIgnoreCase(properties.getProvider())
+                ? "offline-fake"
+                : properties.getModel();
     }
 }
