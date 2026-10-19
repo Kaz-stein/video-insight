@@ -4,21 +4,21 @@ import com.zhaozhenbo.video.application.TaskContext;
 import com.zhaozhenbo.video.domain.ArtifactKind;
 import com.zhaozhenbo.video.domain.CaptionCue;
 import com.zhaozhenbo.video.domain.Stage;
+import com.zhaozhenbo.video.adapter.caption.DefaultCaptionResolver;
 import com.zhaozhenbo.video.pipeline.CaptionArtifact;
 import com.zhaozhenbo.video.port.ArtifactStorePort;
-import com.zhaozhenbo.video.port.CaptionSourcePort;
 import com.zhaozhenbo.video.port.StageHandler;
 
 import java.util.List;
 
-/** FETCHING：读取字幕并落 artifact。 */
+/** FETCHING：视频/链接/字幕统一解析成 CaptionCue 并落 artifact。 */
 public class FetchingStage implements StageHandler {
 
-    private final CaptionSourcePort captionSource;
+    private final DefaultCaptionResolver captionResolver;
     private final ArtifactStorePort artifacts;
 
-    public FetchingStage(CaptionSourcePort captionSource, ArtifactStorePort artifacts) {
-        this.captionSource = captionSource;
+    public FetchingStage(DefaultCaptionResolver captionResolver, ArtifactStorePort artifacts) {
+        this.captionResolver = captionResolver;
         this.artifacts = artifacts;
     }
 
@@ -33,7 +33,7 @@ public class FetchingStage implements StageHandler {
         if (artifacts.load(context.fingerprint(), ArtifactKind.CAPTION, CaptionArtifact.class).isPresent()) {
             return;
         }
-        List<CaptionCue> cues = captionSource.load(context.sourceRef());
+        List<CaptionCue> cues = captionResolver.resolve(context);
         artifacts.save(context.fingerprint(), ArtifactKind.CAPTION, new CaptionArtifact(cues));
     }
 }

@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 
 const STAGES = [
-    ['FETCHING', '正在读取字幕…'],
+    ['FETCHING', '正在读取视频字幕…'],
     ['SEGMENTING', '正在切分语义段…'],
     ['PLANNING', '正在规划章节…'],
     ['EXTRACTING', '正在抽取要点…'],
@@ -10,6 +10,9 @@ const STAGES = [
 ];
 
 const STAGE_NAMES = STAGES.map(([name]) => name);
+const CHUNK_SIZE = 8 * 1024 * 1024;
+const VIDEO_EXT = ['.mp4', '.mkv', '.mov', '.webm', '.m4v', '.avi', '.flv'];
+const SUBTITLE_EXT = ['.srt', '.vtt'];
 
 const SAMPLE_SRT = `1
 00:00:00,000 --> 00:00:08,000
@@ -24,7 +27,9 @@ Java 线程池的核心参数包括核心线程数、最大线程数和队列长
 只有队列满了，线程池才会创建非核心线程。`;
 
 const state = {
+    mode: 'link',
     file: null,
+    fileKind: null,
     taskId: null,
     task: null,
     note: null,
@@ -32,6 +37,10 @@ const state = {
 };
 
 const els = {
+    sourceTabs: [...document.querySelectorAll('.source-tab')],
+    linkPanel: $('#linkPanel'),
+    filePanel: $('#filePanel'),
+    linkInput: $('#linkInput'),
     dropZone: $('#dropZone'),
     fileInput: $('#fileInput'),
     dropTitle: $('#dropTitle'),
@@ -43,6 +52,9 @@ const els = {
     heroUpload: $('#heroUpload'),
     uploadMsg: $('#uploadMsg'),
     retryBtn: $('#retryBtn'),
+    uploadProgress: $('#uploadProgress'),
+    progressBar: $('#progressBar'),
+    progressText: $('#progressText'),
     stageBlock: $('#stageBlock'),
     stageText: $('#stageText'),
     stageList: $('#stageList'),
@@ -80,16 +92,26 @@ function setMessage(text, isError = false) {
     els.uploadMsg.classList.toggle('is-error', Boolean(isError));
 }
 
+function updateSubmitAvailability() {
+    const ready = state.mode === 'link'
+        ? Boolean(els.linkInput.value.trim())
+        : Boolean(state.file);
+    els.submitBtn.disabled = !ready || state.polling;
+}
+
 function setBusy(busy) {
-    els.submitBtn.disabled = busy || !state.file;
     els.demoBtn.disabled = busy;
     els.fileInput.disabled = busy;
+    els.linkInput.disabled = busy;
+    state.polling = busy;
+    updateSubmitAvailability();
 }
 
 function formatBytes(bytes) {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
 function formatTime(ms) {
@@ -116,28 +138,52 @@ function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function extensionOf(name) {
+    const dot = name.lastIndexOf('.');
+    return dot < 0 ? '' : name.slice(dot).toLowerCase();
+}
+
+function setMode(mode) {
+    state.mode = mode;
+    els.sourceTabs.forEach((tab) => {
+        const active = tab.dataset.mode === mode;
+        tab.classList.toggle('is-active', active);
+        tab.setAttribute('aria-selected', String(active));
+    });
+    els.linkPanel.hidden = mode !== 'link';
+    els.filePanel.hidden = mode !== 'file';
+    els.submitBtn.firstChild.textContent = mode === 'link' ? '解析链接并生成' : '上传并生成';
+    updateSubmitAvailability();
+}
+
+function showProgress(ratio) {
+    const percent = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+    els.uploadProgress.hidden = false;
+    els.progressBar.style.width = `${percent}%`;
+    els.progressText.textContent = `${percent}%`;
+}
+
 function pickFile(file) {
     if (!file) return;
-    const lower = file.name.toLowerCase();
-    if (!lower.endsWith('.srt') && !lower.endsWith('.vtt')) {
-        setMessage('只支持 .srt / .vtt 字幕文件。', true);
-        return;
-    }
-    if (file.size > 50 * 1024 * 1024) {
-        setMessage('字幕文件不能超过 50 MB。', true);
+    const ext = extensionOf(file.name);
+    if (!VIDEO_EXT.includes(ext) && !SUBTITLE_EXT.includes(ext)) {
+        setMessage('支持 mp4 / mkv / mov / webm 视频，或 srt / vtt 字幕。', true);
         return;
     }
     state.file = file;
+    state.fileKind = VIDEO_EXT.includes(ext) ? 'video' : 'subtitle';
     els.fileName.textContent = `${file.name} · ${formatBytes(file.size)}`;
     els.fileName.hidden = false;
-    els.dropTitle.textContent = '字幕已就位';
-    els.dropHint.textContent = '点击可重新选择';
+    els.dropTitle.textContent = state.fileKind === 'video' ? '视频已就位' : '字幕已就位';
+    els.dropHint.textContent = state.fileKind === 'video'
+        ? '将按 8MB 分片上传，可断点续传'
+        : '字幕将单请求上传';
     if (!els.titleInput.value.trim()) {
-        els.titleInput.value = file.name.replace(/\.(srt|vtt)$/i, '');
+        els.titleInput.value = file.name.replace(/\.(mp4|mkv|mov|webm|m4v|avi|flv|srt|vtt)$/i, '');
     }
-    els.submitBtn.disabled = false;
     els.retryBtn.hidden = true;
     setMessage('');
+    updateSubmitAvailability();
 }
 
 function resetForNewTask() {
@@ -155,59 +201,212 @@ function resetForNewTask() {
 }
 
 async function submit() {
-    if (!state.file) {
-        setMessage('先选择一份 SRT / VTT 字幕。', true);
+    if (state.mode === 'link') {
+        await submitLink();
+    } else if (state.fileKind === 'video') {
+        await chunkedUpload(state.file);
+    } else {
+        await uploadSubtitle(state.file);
+    }
+}
+
+async function submitLink() {
+    const url = els.linkInput.value.trim();
+    if (!url) {
+        setMessage('先粘贴一个视频链接。', true);
         return;
     }
     resetForNewTask();
     setBusy(true);
-    setMessage('正在提交任务…');
+    setMessage('正在提交链接任务…');
+    try {
+        const response = await fetch('/api/tasks/link', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-Id': getUserId(),
+            },
+            body: JSON.stringify({ url, title: els.titleInput.value.trim() }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (response.status === 429) {
+            setMessage(`提交太频繁了，请 ${response.headers.get('Retry-After') || '几'} 秒后再试。`, true);
+            setBusy(false);
+            return;
+        }
+        if (!response.ok) {
+            throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        startTask(payload);
+    } catch (err) {
+        setMessage(`链接提交失败：${err.message}`, true);
+        setBusy(false);
+    }
+}
 
+async function uploadSubtitle(file) {
+    resetForNewTask();
+    setBusy(true);
+    setMessage('正在上传字幕…');
     const form = new FormData();
-    form.append('file', state.file);
-    form.append('title', els.titleInput.value.trim() || state.file.name.replace(/\.(srt|vtt)$/i, ''));
-
+    form.append('file', file);
+    form.append('title', els.titleInput.value.trim() || file.name.replace(/\.(srt|vtt)$/i, ''));
     try {
         const response = await fetch('/api/tasks', {
             method: 'POST',
             headers: { 'X-User-Id': getUserId() },
             body: form,
         });
-
-        if (response.status === 429) {
-            const retryAfter = response.headers.get('Retry-After') || '几';
-            setMessage(`提交太频繁了，请 ${retryAfter} 秒后再试。`, true);
-            setBusy(false);
-            return;
-        }
-
         const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            setMessage(payload.error || `提交失败（HTTP ${response.status}）`, true);
+        if (response.status === 429) {
+            setMessage(`提交太频繁了，请 ${response.headers.get('Retry-After') || '几'} 秒后再试。`, true);
             setBusy(false);
             return;
         }
-
-        state.taskId = payload.id;
-        state.task = payload;
-        els.stageBlock.hidden = false;
-        setStage(payload);
-        setMessage('任务已提交，正在后台处理。');
-        await pollTask(payload.id);
+        if (!response.ok) {
+            throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        startTask(payload);
     } catch (err) {
-        setMessage(`网络异常：${err.message}`, true);
+        setMessage(`字幕提交失败：${err.message}`, true);
         setBusy(false);
     }
 }
 
+function uploadKey(file) {
+    return `vi-upload:${file.name}:${file.size}:${file.lastModified}`;
+}
+
+async function sha256Hex(buffer) {
+    const digest = await crypto.subtle.digest('SHA-256', buffer);
+    return [...new Uint8Array(digest)]
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join('');
+}
+
+async function chunkedUpload(file) {
+    resetForNewTask();
+    setBusy(true);
+    setMessage('正在准备分片上传…');
+    showProgress(0);
+
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    let uploadId = null;
+    try {
+        const saved = localStorage.getItem(uploadKey(file));
+        if (saved) {
+            const response = await fetch(`/api/uploads/${saved}`, { cache: 'no-store' });
+            if (response.ok) {
+                const status = await response.json();
+                if (status.status === 'UPLOADING') {
+                    uploadId = status.uploadId;
+                    setMessage(`发现未完成的上传，继续补传剩余分片…`);
+                }
+            }
+        }
+
+        if (!uploadId) {
+            const response = await fetch('/api/uploads', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-User-Id': getUserId(),
+                },
+                body: JSON.stringify({
+                    fileName: file.name,
+                    totalSize: file.size,
+                    totalChunks,
+                    chunkSize: CHUNK_SIZE,
+                }),
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(payload.error || `HTTP ${response.status}`);
+            }
+            uploadId = payload.uploadId;
+            localStorage.setItem(uploadKey(file), uploadId);
+        }
+
+        const statusResponse = await fetch(`/api/uploads/${uploadId}`, { cache: 'no-store' });
+        const status = await statusResponse.json();
+        const uploaded = new Set(status.uploadedChunks || []);
+
+        for (let index = 0; index < totalChunks; index++) {
+            if (uploaded.has(index)) {
+                showProgress((index + 1) / totalChunks);
+                continue;
+            }
+            const start = index * CHUNK_SIZE;
+            const blob = file.slice(start, Math.min(file.size, start + CHUNK_SIZE));
+            const buffer = await blob.arrayBuffer();
+            const checksum = await sha256Hex(buffer);
+            await putChunk(uploadId, index, blob, checksum);
+            showProgress((index + 1) / totalChunks);
+            setMessage(`正在上传分片 ${index + 1} / ${totalChunks}…`);
+        }
+
+        setMessage('分片已传完，正在合并并创建任务…');
+        const response = await fetch(`/api/uploads/${uploadId}/complete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-Id': getUserId(),
+            },
+            body: JSON.stringify({ title: els.titleInput.value.trim() }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        localStorage.removeItem(uploadKey(file));
+        showProgress(1);
+        startTask(payload);
+    } catch (err) {
+        setBusy(false);
+        setMessage(`上传中断：${err.message}。已上传的分片会保留，再点一次会继续。`, true);
+    }
+}
+
+async function putChunk(uploadId, index, blob, checksum) {
+    let lastError = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            const response = await fetch(`/api/uploads/${uploadId}/chunks/${index}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/octet-stream',
+                    'X-Chunk-SHA256': checksum,
+                },
+                body: blob,
+            });
+            if (response.ok) return;
+            const payload = await response.json().catch(() => ({}));
+            lastError = new Error(payload.error || `HTTP ${response.status}`);
+            if (response.status >= 400 && response.status < 500) break;
+        } catch (err) {
+            lastError = err;
+        }
+        await sleep(400 * attempt);
+    }
+    throw lastError || new Error('分片上传失败');
+}
+
+function startTask(payload) {
+    state.taskId = payload.id;
+    state.task = payload;
+    els.stageBlock.hidden = false;
+    setStage(payload);
+    setMessage('任务已提交，正在后台处理。');
+    pollTask(payload.id);
+}
+
 async function pollTask(taskId) {
     state.polling = true;
+    updateSubmitAvailability();
     while (state.polling) {
         try {
             const response = await fetch(`/api/tasks/${taskId}`, { cache: 'no-store' });
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const task = await response.json();
             state.task = task;
             setStage(task);
@@ -264,9 +463,7 @@ function setStage(task) {
 async function loadNote(task) {
     try {
         const response = await fetch(`/api/tasks/${task.id}/note`, { cache: 'no-store' });
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const note = await response.json();
         state.note = note;
         renderNote(note, task);
@@ -318,7 +515,6 @@ function renderNote(note, task) {
             const heading = document.createElement('h3');
             heading.textContent = sectionTitle;
             section.appendChild(heading);
-
             const list = document.createElement('div');
             list.className = 'point-list';
             groupPoints.forEach((point) => list.appendChild(renderPoint(point)));
@@ -376,12 +572,10 @@ function renderPoint(point) {
     });
 
     copy.append(text, toggle, quote);
-
     const badge = document.createElement('span');
     const status = point.status || 'INFERRED';
     badge.className = `status-badge ${status.toLowerCase()}`;
     badge.textContent = status === 'GROUNDED' ? '有依据' : status === 'INFERRED' ? '模型推断' : '未通过';
-
     row.append(time, copy, badge);
     return row;
 }
@@ -403,9 +597,7 @@ async function retry() {
             headers: { 'X-User-Id': getUserId() },
         });
         const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            throw new Error(payload.error || `HTTP ${response.status}`);
-        }
+        if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
         state.task = payload;
         els.stageBlock.hidden = false;
         setStage(payload);
@@ -421,9 +613,7 @@ async function downloadMarkdown() {
     if (!state.taskId) return;
     try {
         const response = await fetch(`/api/tasks/${state.taskId}/note.md`);
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -447,14 +637,23 @@ async function loadEval() {
         els.statUnsupported.textContent = formatPercent(data.unsupportedRate);
         els.statDuration.textContent = formatDuration(data.avgDurationMs);
     } catch {
-        // 指标只是辅助信息，接口未就绪时保持 “—”
+        // 指标只是辅助信息
     }
 }
 
 function bindEvents() {
+    els.sourceTabs.forEach((tab) => {
+        tab.addEventListener('click', () => setMode(tab.dataset.mode));
+    });
+    els.linkInput.addEventListener('input', updateSubmitAvailability);
+    els.linkInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && els.linkInput.value.trim()) submit();
+    });
+
     els.heroUpload.addEventListener('click', () => {
         document.querySelector('#workbench').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        els.fileInput.click();
+        setMode('link');
+        setTimeout(() => els.linkInput.focus(), 350);
     });
 
     els.dropZone.addEventListener('click', () => els.fileInput.click());
@@ -486,6 +685,7 @@ function bindEvents() {
     els.retryBtn.addEventListener('click', retry);
     els.downloadBtn.addEventListener('click', downloadMarkdown);
     els.demoBtn.addEventListener('click', () => {
+        setMode('file');
         const file = new File([SAMPLE_SRT], 'thread-pool-demo.srt', { type: 'text/plain' });
         pickFile(file);
         els.titleInput.value = '线程池讲解';
@@ -493,10 +693,11 @@ function bindEvents() {
     });
 }
 
+setMode('link');
 bindEvents();
 loadEval();
 
-// 供演示/无交互截图使用：/?demo=1 自动跑一遍示例字幕
+// 演示入口：/?demo=1 自动跑示例字幕
 if (new URLSearchParams(window.location.search).get('demo') === '1') {
     setTimeout(() => els.demoBtn.click(), 500);
 }

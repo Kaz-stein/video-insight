@@ -112,3 +112,34 @@ CREATE TABLE IF NOT EXISTS stage_log (
     -- 同一任务同一阶段的第 N 次尝试只能有一条记录，否则无法准确统计重试次数
     UNIQUE KEY uk_log_task_stage_attempt (task_id, stage, attempt)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT ='阶段日志（可观测性）';
+
+-- ============================================================================
+-- 分片上传：大视频（1GB+）断网后只补缺失分片
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS upload_session (
+    id           CHAR(36)     NOT NULL COMMENT '上传会话 UUID',
+    user_id      BIGINT       NOT NULL DEFAULT 0,
+    file_name    VARCHAR(255) NOT NULL COMMENT '原始文件名（只用于展示，不进 artifact）',
+    extension    VARCHAR(16)  NOT NULL,
+    total_chunks INT          NOT NULL,
+    chunk_size   BIGINT       NOT NULL COMMENT '约定分片大小；最后一片可更小',
+    total_size   BIGINT       NOT NULL,
+    status       VARCHAR(16)  NOT NULL COMMENT 'UPLOADING/MERGING/COMPLETED/FAILED',
+    task_id      BIGINT                DEFAULT NULL COMMENT '合并后创建的任务',
+    created_at   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    PRIMARY KEY (id),
+    KEY idx_upload_user_time (user_id, created_at)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT ='分片上传会话';
+
+CREATE TABLE IF NOT EXISTS upload_chunk (
+    id          BIGINT      NOT NULL AUTO_INCREMENT,
+    session_id  CHAR(36)    NOT NULL,
+    chunk_index INT         NOT NULL,
+    size        INT         NOT NULL,
+    checksum    CHAR(64)    NOT NULL COMMENT '分片 sha256',
+    created_at  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    PRIMARY KEY (id),
+    -- 同一个分片重复上传只能有一行；PUT 是幂等的
+    UNIQUE KEY uk_chunk_session_index (session_id, chunk_index)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT ='已上传分片';

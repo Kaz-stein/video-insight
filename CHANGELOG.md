@@ -1,5 +1,36 @@
 # 变更记录
 
+## 2026-10-19 — 视频 / 链接入口与分片上传
+
+Tag：`milestone-video-2026-10-19`
+
+### 已完成
+
+- `POST /api/tasks` 支持视频（mp4/mkv/mov/webm）与字幕
+- `POST /api/tasks/link` 支持视频链接
+- `upload_session` / `upload_chunk`：8MB 分片、sha256、断点查询、合并校验
+- `VideoCaptionSource`：ffmpeg 抽内嵌字幕；无字幕走 OpenAI 兼容云 ASR
+- `LinkCaptionSource`：yt-dlp 只取字幕，支持 `YTDLP_COOKIES_FILE`
+- 前端：链接 / 上传文件双入口、分片进度、失败后续传
+
+### 验证
+
+- 2MB 视频分 2 片上传；重复片幂等；合并后任务 DONE
+- 浏览器视频上传进度 100%，笔记渲染正常，无控制台错误
+- `mvn test`：46 项通过（1 项可选 MQ 冒烟默认跳过）
+
+### 已知限制
+
+- B 站实测可能 412，需要配置 cookies.txt
+- 没有内嵌字幕且未配置 ASR 时任务会明确失败，不生成空笔记
+
+### 回退
+
+```powershell
+git fetch --tags
+git switch -c rollback/video milestone-video-2026-10-19
+```
+
 ## 2026-10-19 — 前端工作台（夜航玻璃拟态）
 
 Tag：`milestone-frontend-2026-10-19`

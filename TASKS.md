@@ -113,6 +113,21 @@
   - 1440 / 390 宽度无横向溢出；浏览器控制台无错误
   - 计算样式：玻璃 7.5% 白、blur 60/30px、saturate 180%、香槟金 CTA
 
+## T9 视频 / 链接入口与分片上传 ✅
+
+- 目标：入口从“字幕文件”升级为“视频链接 / 视频文件 / 字幕”，并支持大文件断点续传
+- 后端：
+  - `POST /api/tasks` 支持视频与字幕，按扩展名分流
+  - `POST /api/tasks/link` 接收视频链接
+  - `upload_session` / `upload_chunk` 分片会话，8MB 分片、sha256、断点查询
+  - `VideoCaptionSource`：ffmpeg 抽内嵌字幕，无字幕走云 ASR
+  - `LinkCaptionSource`：yt-dlp 只取字幕，支持 cookies
+- 前端：链接 / 上传文件双入口，视频分片进度与断点续传
+- 验收：
+  - 2MB 视频分 2 片上传、重复片幂等、合并后任务 DONE
+  - 浏览器上传进度 100%，笔记正常渲染，无横向溢出
+  - `mvn test` 46 项通过（1 项可选 MQ 冒烟默认跳过）
+
 ## 仍不在本轮
 
-ASR 真机接入 · 画面 OCR · B 站链接抓取 · 邮件投递 · Docker · 播放器同步
+画面 OCR · 邮件投递 · Docker · 播放器同步

@@ -34,8 +34,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
         return !"POST".equalsIgnoreCase(request.getMethod())
-                || !"/api/tasks".equals(request.getRequestURI());
+                || (!"/api/tasks".equals(path)
+                && !"/api/tasks/link".equals(path)
+                && !"/api/uploads".equals(path));
     }
 
     @Override

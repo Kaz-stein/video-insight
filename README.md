@@ -2,8 +2,8 @@
 
 把长视频变成**每条要点都能回跳原片时间点**的 Markdown 笔记。
 
-> 当前状态：T1–T7 + 前端工作台已完成（解析 → 切段 → 四步 Agent → 证据校验 → 成稿 → API → 评测/限流 → 夜航玻璃界面）。
-> 播放器同步与 ASR/OCR 还在路线图上。
+> 当前状态：视频链接 / 视频文件 / 字幕三种入口已接通；视频优先抽内嵌字幕，无字幕走云 ASR；
+> 大文件走 8MB 分片上传与断点续传。播放器同步与画面 OCR 还在路线图上。
 
 ## 为什么做这个
 
@@ -36,6 +36,9 @@
 - 阶段产物落 MySQL `video_artifact`（JSON），键带 pipeline 版本
 - FakeLLM 离线测试 + OpenAI 兼容 HTTP 适配器（DeepSeek / Qwen / GLM）
 - HTTP API：上传字幕、查询任务、取笔记 JSON、下载 Markdown、失败重试
+- 视频链接：yt-dlp 只取字幕，不下载整段视频；B 站 412 时配置 cookies
+- 视频文件：ffmpeg 抽内嵌字幕；没有字幕时调用 OpenAI 兼容的云 ASR
+- 分片上传：8MB 分片、分片 sha256、断点查询、整体合并校验
 - 评测接口：引用可回溯率、无依据率、平均端到端耗时
 - Redis 令牌桶限流：Lua 原子扣减，超限返回 429 + `Retry-After`
 
@@ -63,6 +66,8 @@ RocketMQ: video-task 主题
 - RocketMQ 5.5.1（经典客户端）
 - Redis（令牌桶；无 Redis 时可用内存实现）
 - 前端：原生 HTML / CSS / JavaScript，无构建链
+- ffmpeg / yt-dlp（视频与链接解析）
+- 云 ASR：OpenAI 兼容 `/v1/audio/transcriptions`
 - Jackson 3
 - JUnit 5 + AssertJ + H2（测试）
 
@@ -90,6 +95,12 @@ bin\mqbroker.cmd -n 127.0.0.1:9876 -c conf\broker-local.conf
 $env:DB_PASSWORD='你的 MySQL 密码'
 $env:MQ_ENABLED='true'
 $env:LLM_PROVIDER='fake'          # 本地演示；真实模型用 http
+$env:FFMPEG_PATH='...\ffmpeg.exe'
+$env:YTDLP_PATH='...\yt-dlp.exe'
+# $env:YTDLP_COOKIES_FILE='...\cookies.txt'   # B 站 412 时需要
+# $env:ASR_ENABLED='true'
+# $env:ASR_API_KEY='...'
+# $env:ASR_MODEL='whisper-1'
 $env:RATE_LIMIT_MODE='memory'     # 有 Redis 时用 redis
 # $env:RATE_LIMIT_CAPACITY='10'
 # $env:RATE_LIMIT_REFILL='2'
@@ -127,6 +138,17 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/tasks/$($task.id)/note"
 Invoke-WebRequest -Uri "http://127.0.0.1:8080/api/tasks/$($task.id)/note.md" -OutFile note.md
 ```
 
+接口入口：
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/api/tasks` | multipart 上传视频（mp4/mkv/mov/webm）或字幕（srt/vtt） |
+| POST | `/api/tasks/link` | JSON `{url,title}`，解析视频链接 |
+| POST | `/api/uploads` | 创建 8MB 分片上传会话 |
+| PUT | `/api/uploads/{id}/chunks/{index}` | 上传分片，`X-Chunk-SHA256` 校验 |
+| GET | `/api/uploads/{id}` | 查询已上传分片，断点续传 |
+| POST | `/api/uploads/{id}/complete` | 合并并创建任务 |
+
 评测：
 
 ```powershell
@@ -151,7 +173,7 @@ $env:MYSQL_IT='true'; mvn -Dtest=MysqlArtifactStoreIT test
 
 ## 测试状态
 
-- `mvn test`：44 项通过，0 失败，1 项可选 MQ 冒烟默认跳过
+- `mvn test`：46 项通过，0 失败，1 项可选 MQ 冒烟默认跳过
 - 真 RocketMQ 冒烟：通过
 - MySQL JSON artifact 集成测试：通过
 - 手工端到端：任务 `DONE`，六个 artifact 落库，NOTE 首条要点 `GROUNDED / overlap=1.0`
@@ -172,10 +194,10 @@ git switch -c rollback/frontend milestone-frontend-2026-10-19
 
 ## Roadmap
 
-- 前端：原生 HTML/CSS/JS + 播放器时间戳跳转
-- 输入：云 ASR（无字幕时）、B 站字幕适配器、画面 OCR（后续）
+- 前端：播放器时间戳同步（页面和交互已完成）
+- 输入：画面 OCR（后续）
 
 ## 说明
 
-v1 只支持本地 SRT/VTT 文件；ASR、OCR、B 站抓取都还没实现。
-没有 API 之前，可以通过数据库任务 + RocketMQ 消息做端到端验证。
+视频内嵌字幕可直接解析；没有内嵌字幕时需要配置云 ASR。
+B 站链接实测可能触发 412，需要配置 `YTDLP_COOKIES_FILE`；画面 OCR 还没实现。

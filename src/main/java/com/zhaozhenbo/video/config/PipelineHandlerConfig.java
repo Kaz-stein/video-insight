@@ -1,6 +1,10 @@
 package com.zhaozhenbo.video.config;
 
 import com.zhaozhenbo.video.adapter.caption.LocalCaptionSource;
+import com.zhaozhenbo.video.adapter.caption.DefaultCaptionResolver;
+import com.zhaozhenbo.video.adapter.caption.LinkCaptionSource;
+import com.zhaozhenbo.video.adapter.caption.VideoCaptionSource;
+import com.zhaozhenbo.video.adapter.asr.OpenAiAsrAdapter;
 import com.zhaozhenbo.video.adapter.llm.FakeLlmAdapter;
 import com.zhaozhenbo.video.adapter.llm.HttpLlmAdapter;
 import com.zhaozhenbo.video.adapter.llm.LlmProperties;
@@ -18,11 +22,12 @@ import com.zhaozhenbo.video.pipeline.stage.PlanningStage;
 import com.zhaozhenbo.video.pipeline.stage.SegmentingStage;
 import com.zhaozhenbo.video.pipeline.stage.VerifyingStage;
 import com.zhaozhenbo.video.port.ArtifactStorePort;
-import com.zhaozhenbo.video.port.CaptionSourcePort;
+import com.zhaozhenbo.video.port.AsrPort;
 import com.zhaozhenbo.video.port.LlmPort;
 import com.zhaozhenbo.video.port.NoteStorePort;
 import com.zhaozhenbo.video.port.StageHandler;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.ObjectMapper;
@@ -32,11 +37,22 @@ import tools.jackson.databind.ObjectMapper;
  */
 @Configuration
 @ConditionalOnProperty(name = "video.pipeline.real-handlers", havingValue = "true")
+@EnableConfigurationProperties({ExternalToolsProperties.class, AsrProperties.class})
 public class PipelineHandlerConfig {
 
     @Bean
-    public CaptionSourcePort captionSourcePort() {
-        return new LocalCaptionSource();
+    public AsrPort asrPort(AsrProperties properties, ObjectMapper mapper) {
+        return new OpenAiAsrAdapter(properties, mapper);
+    }
+
+    @Bean
+    public DefaultCaptionResolver captionResolver(ExternalToolsProperties tools,
+                                                  AsrProperties asrProperties,
+                                                  AsrPort asrPort) {
+        return new DefaultCaptionResolver(
+                new LocalCaptionSource(),
+                new VideoCaptionSource(tools, asrProperties, asrPort),
+                new LinkCaptionSource(tools));
     }
 
     @Bean
@@ -78,7 +94,7 @@ public class PipelineHandlerConfig {
     }
 
     @Bean
-    public StageHandler fetchingStage(CaptionSourcePort captions, ArtifactStorePort artifacts) {
+    public StageHandler fetchingStage(DefaultCaptionResolver captions, ArtifactStorePort artifacts) {
         return new FetchingStage(captions, artifacts);
     }
 

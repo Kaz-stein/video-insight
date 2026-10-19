@@ -1,6 +1,7 @@
 package com.zhaozhenbo.video.pipeline;
 
 import com.zhaozhenbo.video.adapter.caption.LocalCaptionSource;
+import com.zhaozhenbo.video.adapter.caption.DefaultCaptionResolver;
 import com.zhaozhenbo.video.adapter.llm.FakeLlmAdapter;
 import com.zhaozhenbo.video.application.TaskContext;
 import com.zhaozhenbo.video.domain.ArtifactKind;
@@ -71,7 +72,8 @@ class PipelineChainTest {
         InMemoryNoteStore notes = new InMemoryNoteStore();
 
         List<StageHandler> stages = List.of(
-                new FetchingStage(new LocalCaptionSource(), artifacts),
+                new FetchingStage(new DefaultCaptionResolver(
+                        new LocalCaptionSource(), null, null), artifacts),
                 new SegmentingStage(segmenter, artifacts),
                 new PlanningStage(planner, artifacts),
                 new ExtractingStage(extractor, artifacts),

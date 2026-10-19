@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 
 public record TaskResponse(
         long id,
+        String sourceType,
         String status,
         String stage,
         String title,
@@ -16,6 +17,7 @@ public record TaskResponse(
     public static TaskResponse from(VideoTaskEntity task) {
         return new TaskResponse(
                 task.getId(),
+                task.getSourceType(),
                 task.getStatus() == null ? null : task.getStatus().name(),
                 task.getStage() == null ? null : task.getStage().name(),
                 task.getTitle(),

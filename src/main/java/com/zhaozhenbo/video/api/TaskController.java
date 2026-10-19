@@ -3,6 +3,7 @@ package com.zhaozhenbo.video.api;
 import com.zhaozhenbo.video.adapter.persistence.VideoTaskEntity;
 import com.zhaozhenbo.video.adapter.persistence.VideoTaskRepository;
 import com.zhaozhenbo.video.api.dto.NoteResponse;
+import com.zhaozhenbo.video.api.dto.LinkTaskRequest;
 import com.zhaozhenbo.video.api.dto.TaskResponse;
 import com.zhaozhenbo.video.application.TaskSubmissionService;
 import com.zhaozhenbo.video.port.NoteStorePort;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -39,6 +41,12 @@ public class TaskController {
     public ResponseEntity<TaskResponse> submit(@RequestParam("file") MultipartFile file,
                                                @RequestParam(value = "title", required = false) String title) {
         VideoTaskEntity task = submission.submit(file, title);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(TaskResponse.from(task));
+    }
+
+    @PostMapping(value = "/link", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<TaskResponse> submitLink(@RequestBody LinkTaskRequest request) {
+        VideoTaskEntity task = submission.submitLink(request.url(), request.title());
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(TaskResponse.from(task));
     }
 

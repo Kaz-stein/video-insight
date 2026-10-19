@@ -7,8 +7,9 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 50MB
+      max-file-size: 1GB
+      max-request-size: 1GB
+      file-size-threshold: 2MB
 
   datasource:
     # 默认连本机 MySQL；密码走环境变量，不写进仓库
@@ -52,6 +53,19 @@ logging:
     com.zhaozhenbo.video: DEBUG
 
 video:
+  tools:
+    ffmpeg: ${FFMPEG_PATH:ffmpeg}
+    ffprobe: ${FFPROBE_PATH:ffprobe}
+    ytdlp: ${YTDLP_PATH:yt-dlp}
+    cookies-file: ${YTDLP_COOKIES_FILE:}
+  asr:
+    enabled: ${ASR_ENABLED:false}
+    base-url: ${ASR_BASE_URL:https://api.openai.com}
+    api-key: ${ASR_API_KEY:}
+    model: ${ASR_MODEL:whisper-1}
+    language: ${ASR_LANGUAGE:zh}
+    timeout-seconds: 300
+    max-audio-mb: 100
   rate-limit:
     # memory 便于本地/测试；多实例生产切 redis
     mode: ${RATE_LIMIT_MODE:memory}

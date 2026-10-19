@@ -46,13 +46,13 @@
             <p class="kicker">视频 → 可核对的笔记</p>
             <h1 id="heroTitle">把长视频，读成一条<br><span>可回跳</span>的光轨。</h1>
             <p class="lede">
-                上传字幕，系统会切段、规划、抽取、校验，再把每条观点钉回原片的时间点。
-                不是“看起来像总结”，而是每条事实都能回到原文核对。
+                粘贴视频链接或上传视频，系统会抽字幕、转写、切段、规划、校验，
+                再把每条观点钉回原片的时间点。不是“看起来像总结”，而是每条事实都能回到原文核对。
             </p>
             <div class="hero-actions">
                 <button class="btn btn-accent" id="heroUpload" type="button">
                     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m0-9 3.5 3.5M10 3 6.5 6.5M4 13.5V16h12v-2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    导入字幕
+                    导入视频
                 </button>
                 <a class="btn btn-ghost" href="#workbench">看工作台</a>
             </div>
@@ -107,13 +107,31 @@
         <div class="app-grid">
             <section class="panel glass upload-panel" aria-labelledby="uploadTitle">
                 <div class="panel-head">
-                    <h3 id="uploadTitle">导入字幕</h3>
-                    <span class="mono-label">SRT / VTT</span>
+                    <h3 id="uploadTitle">导入素材</h3>
+                    <span class="mono-label">LINK / VIDEO</span>
                 </div>
 
+                <div class="source-tabs" role="tablist" aria-label="素材来源">
+                    <button class="source-tab is-active" data-mode="link" role="tab"
+                            aria-selected="true">视频链接</button>
+                    <button class="source-tab" data-mode="file" role="tab"
+                            aria-selected="false">上传视频</button>
+                </div>
+
+                <div id="linkPanel" class="source-panel">
+                    <label class="field first-field" for="linkInput">
+                        <span>视频链接</span>
+                        <input id="linkInput" type="url" maxlength="1024"
+                               placeholder="https://www.bilibili.com/video/BV..." autocomplete="off">
+                    </label>
+                    <p class="source-hint">支持 B 站 / YouTube。只读取字幕，不下载整段视频；B 站 412 时需配置 cookies。</p>
+                </div>
+
+                <div id="filePanel" class="source-panel" hidden>
                 <div id="dropZone" class="drop-zone" tabindex="0" role="button"
-                     aria-label="选择或拖入 SRT、VTT 字幕文件">
-                    <input id="fileInput" type="file" accept=".srt,.vtt" hidden>
+                     aria-label="选择或拖入视频、SRT、VTT 文件">
+                    <input id="fileInput" type="file"
+                           accept=".mp4,.mkv,.mov,.webm,.m4v,.avi,.flv,.srt,.vtt" hidden>
                     <span class="drop-icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none">
                             <path d="M12 16V5m0 0 4 4m-4-4L8 9M5 16.5V19h14v-2.5"
@@ -121,9 +139,18 @@
                                   stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </span>
-                    <strong id="dropTitle">拖入字幕文件</strong>
-                    <span id="dropHint">或点击选择 · 最大 50 MB</span>
+                    <strong id="dropTitle">拖入视频或字幕</strong>
+                    <span id="dropHint">mp4 / mkv / mov / webm / srt / vtt</span>
                     <span id="fileName" class="file-name" hidden></span>
+                </div>
+                    <div id="uploadProgress" class="upload-progress" hidden>
+                        <div class="progress-track"><span id="progressBar"></span></div>
+                        <div class="progress-copy">
+                            <span id="progressText">0%</span>
+                            <span>分片上传</span>
+                        </div>
+                    </div>
+                    <p class="source-hint">视频按 8MB 分片；断网后再次点击会从缺失分片继续。</p>
                 </div>
 
                 <label class="field" for="titleInput">
@@ -133,10 +160,10 @@
                 </label>
 
                 <button id="submitBtn" class="btn btn-accent btn-wide" type="button" disabled>
-                    生成笔记
+                    解析链接并生成
                     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11m-4-4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </button>
-                <button id="demoBtn" class="text-button" type="button">没有文件？用示例字幕试试</button>
+                <button id="demoBtn" class="text-button" type="button">用字幕示例体验</button>
 
                 <p id="uploadMsg" class="form-msg" role="status" aria-live="polite"></p>
                 <button id="retryBtn" class="btn btn-ghost btn-wide" type="button" hidden>
@@ -169,9 +196,9 @@
                     <div class="empty-orbit" aria-hidden="true">
                         <span></span><span></span><span></span>
                     </div>
-                    <p class="kicker">等待一份字幕</p>
+                    <p class="kicker">等待一份视频</p>
                     <h3>笔记会在这里展开</h3>
-                    <p>上传后，你会看到摘要、章节、要点和可点击的时间轴。每条观点都能展开原文。</p>
+                    <p>粘贴链接或上传视频后，你会看到摘要、章节、要点和可点击的时间轴。每条观点都能展开原文。</p>
                 </div>
 
                 <article id="noteArticle" hidden>
@@ -238,7 +265,7 @@
         <strong>夜航笔记</strong>
         <span>Video Insight · 本地优先的视频笔记工作台</span>
     </div>
-    <p>v1 支持 SRT / VTT；云 ASR、画面 OCR 与播放器同步仍在路线图上。</p>
+    <p>视频优先抽内嵌字幕；无字幕可配置云 ASR。画面 OCR 与播放器同步仍在路线图上。</p>
 </footer>
 
 <script src="/js/app.js" defer></script>
