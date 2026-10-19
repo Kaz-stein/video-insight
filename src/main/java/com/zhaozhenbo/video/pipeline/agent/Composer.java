@@ -27,8 +27,16 @@ public class Composer {
     }
 
     public NoteDraft compose(String title, Plan plan, List<VerifiedPoint> points, String model) {
+        return compose(title, plan, List.of(), points, model);
+    }
+
+    public NoteDraft compose(String title,
+                             Plan plan,
+                             List<ComposerInput.SectionText> sections,
+                             List<VerifiedPoint> points,
+                             String model) {
         String safeTitle = (title == null || title.isBlank()) ? "视频笔记" : title.strip();
-        ComposerOutput output = tryLlm(safeTitle, plan, points);
+        ComposerOutput output = tryLlm(safeTitle, plan, sections, points);
 
         String summary = output == null || output.summary() == null || output.summary().isBlank()
                 ? mechanicalSummary(points)
@@ -57,17 +65,21 @@ public class Composer {
                 && markdown.contains("## 时间轴");
     }
 
-    private ComposerOutput tryLlm(String title, Plan plan, List<VerifiedPoint> points) {
+    private ComposerOutput tryLlm(String title,
+                                  Plan plan,
+                                  List<ComposerInput.SectionText> sections,
+                                  List<VerifiedPoint> points) {
         try {
-            String inputJson = mapper.writeValueAsString(new ComposerInput(title, plan, points));
+            ComposerInput input = new ComposerInput(title, plan, sections, points);
+            String inputJson = mapper.writeValueAsString(input);
             String response = llm.complete(new LlmCall(
                     LlmStep.COMPOSER,
                     Prompts.COMPOSER_VERSION,
                     Prompts.composerSystem(),
                     Prompts.composerUser(inputJson),
-                    new ComposerInput(title, plan, points),
+                    input,
                     0.3,
-                    4000));
+                    6000));
             return mapper.readValue(response, ComposerOutput.class);
         } catch (Exception e) {
             return null;

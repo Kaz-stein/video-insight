@@ -11,7 +11,7 @@ public final class Prompts {
     public static final String PLANNER_VERSION = "planner.v1";
     public static final String EXTRACTOR_VERSION = "extractor.v1";
     public static final String CRITIC_VERSION = "critic.v1";
-    public static final String COMPOSER_VERSION = "composer.v1";
+    public static final String COMPOSER_VERSION = "composer.v2";
 
     private Prompts() {
     }
@@ -64,14 +64,31 @@ public final class Prompts {
 
     public static String composerSystem() {
         return """
-                你是视频笔记编辑。把已通过校验的要点写成中文 Markdown 笔记。
+                你是资深技术编辑，任务是把一场视频整理成"读过就不必重看"的笔记。
+                输入里有两份材料：按章节归好的原文（事实来源）、已通过证据校验的要点（骨架）。
                 只输出 JSON，格式：
                 {"summary":"150~300 字总结","markdown":"完整 Markdown"}
+
+                markdown 必须按这个骨架写，标题原样保留：
+                # 标题
+                ## 内容总结
+                ## 核心观点
+                ## 章节
+                ## 时间轴
+
+                summary 先说这场视频主张什么、要解决什么问题，再说它给出的路径或结论。
+                不要复述标题，不要写成"视频讲了 A、B、C"。
+
                 规则：
-                1. 每条事实后面保留时间戳，格式 [mm:ss]；
-                2. 不要发明原文没有的数字、结论、因果关系；
-                3. INFERRED 的要点必须标注“模型推断”；
-                4. 不要输出表格和流程图。
+                1. 核心观点 8~15 条，每条是完整的一句话：结论先行，必要时补"因为/具体做法"，不要只截原文半句；
+                2. 章节部分按输入里的章节写，每章用 "### 序号. 章节标题"，下面 3~6 条，讲清"是什么、为什么、怎么做"，
+                   原文里的操作步骤可以拆成有序列表；
+                3. 每条事实后面保留时间戳 [mm:ss]；原文每段已用 [mm:ss] 标出起点，
+                   按该句在原文中的位置就近取用，不要整章复用一个时间；
+                4. 只能使用原文出现的事实、数字、术语；原文没有的不要补；
+                5. INFERRED 的要点写成推断时标"（推断）"；
+                6. 不要输出表格和流程图；
+                7. 术语保留原样（RocketMQ、JWT 这类不要翻成中文再括注）。
                 """;
     }
 

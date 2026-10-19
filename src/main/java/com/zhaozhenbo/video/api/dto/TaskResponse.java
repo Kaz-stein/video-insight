@@ -10,6 +10,7 @@ public record TaskResponse(
         String status,
         String stage,
         String title,
+        String sourceRef,
         String error,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
@@ -21,6 +22,8 @@ public record TaskResponse(
                 task.getStatus() == null ? null : task.getStatus().name(),
                 task.getStage() == null ? null : task.getStage().name(),
                 task.getTitle(),
+                // 只有链接类任务才回传原始地址，文件任务是本地路径，不该出现在响应里
+                "BILIBILI".equals(task.getSourceType()) ? task.getSourceRef() : null,
                 task.getError(),
                 task.getCreatedAt(),
                 task.getUpdatedAt());

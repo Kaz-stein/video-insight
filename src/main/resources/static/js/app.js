@@ -592,6 +592,16 @@ function renderNote(note, task) {
     }
 }
 
+/** 有 B 站原始链接时，时间戳直接跳转到对应秒；文件任务返回 null 走页内定位 */
+function videoJumpUrl(ms) {
+    const ref = state.task?.sourceRef;
+    if (!ref || !/bilibili\.com|b23\.tv/.test(ref)) return null;
+    const seconds = Math.max(0, Math.floor((ms || 0) / 1000));
+    const base = ref.split('#')[0];
+    const sep = base.includes('?') ? '&' : '?';
+    return `${base}${sep}t=${seconds}`;
+}
+
 function renderPoint(point) {
     const row = document.createElement('article');
     row.className = 'point-row';
@@ -600,8 +610,14 @@ function renderPoint(point) {
     time.type = 'button';
     time.className = 'time-chip';
     time.textContent = formatTime(point.startMs);
-    time.setAttribute('aria-label', `跳到 ${formatTime(point.startMs)}`);
-    time.addEventListener('click', () => setTimeReadout(point.startMs, row));
+    const jumpUrl = videoJumpUrl(point.startMs);
+    if (jumpUrl) {
+        time.setAttribute('aria-label', `在 B 站从 ${formatTime(point.startMs)} 播放`);
+        time.addEventListener('click', () => window.open(jumpUrl, '_blank', 'noopener'));
+    } else {
+        time.setAttribute('aria-label', `跳到 ${formatTime(point.startMs)}`);
+        time.addEventListener('click', () => setTimeReadout(point.startMs, row));
+    }
 
     const copy = document.createElement('div');
     const text = document.createElement('p');
