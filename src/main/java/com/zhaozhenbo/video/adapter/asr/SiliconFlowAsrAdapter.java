@@ -20,6 +20,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 硅基流动 SenseVoice 适配器。
@@ -29,6 +35,11 @@ import java.util.concurrent.TimeUnit;
  * 精度约 ±60 秒，适合先跑通多模态产品，不是逐句对齐的替代品。
  */
 public class SiliconFlowAsrAdapter implements AsrPort {
+
+    private static final Logger log = LoggerFactory.getLogger(SiliconFlowAsrAdapter.class);
+
+    /** 同时打几个转写请求：单片约 20~30 秒，串行跑长视频会等到怀疑人生。 */
+    private static final int CONCURRENCY = 3;
 
     private final AsrProperties properties;
     private final ExternalToolsProperties tools;
@@ -60,18 +71,7 @@ public class SiliconFlowAsrAdapter implements AsrPort {
             work = Files.createTempDirectory("siliconflow-asr-");
             long totalMs = durationMs(audioFile);
             List<Path> chunks = split(audioFile, work);
-            List<CaptionCue> cues = new ArrayList<>();
-            long startMs = 0;
-            for (Path chunk : chunks) {
-                String text = transcribeChunk(chunk);
-                if (!text.isBlank()) {
-                    long endMs = totalMs > 0
-                            ? Math.min(totalMs, startMs + properties.getChunkSeconds() * 1000L)
-                            : startMs + properties.getChunkSeconds() * 1000L;
-                    cues.add(new CaptionCue(cues.size(), startMs, Math.max(startMs, endMs), text.strip()));
-                }
-                startMs += properties.getChunkSeconds() * 1000L;
-            }
+            List<CaptionCue> cues = transcribeAll(chunks, totalMs);
             if (cues.isEmpty()) {
                 throw new IllegalStateException("SiliconFlow 没有返回可用文本");
             }
@@ -83,6 +83,47 @@ public class SiliconFlowAsrAdapter implements AsrPort {
             throw new IllegalStateException("SiliconFlow 转写失败: " + e.getMessage(), e);
         } finally {
             cleanup(work);
+        }
+    }
+
+    /**
+     * 并发转写，但按分片原始顺序组装结果 —— 时间轴不能被完成顺序打乱。
+     *
+     * futures 是按 chunk 顺序提交的，所以按下标 get() 拿到的文本天然对应
+     * "第 i 段 60 秒"，哪怕第 3 片比第 1 片先返回。
+     */
+    private List<CaptionCue> transcribeAll(List<Path> chunks, long totalMs) throws Exception {
+        if (chunks.isEmpty()) {
+            return List.of();
+        }
+        AtomicInteger finished = new AtomicInteger();
+        ExecutorService pool = Executors.newFixedThreadPool(
+                Math.min(CONCURRENCY, chunks.size()));
+        try {
+            List<Future<String>> futures = new ArrayList<>(chunks.size());
+            for (Path chunk : chunks) {
+                futures.add(pool.submit(() -> {
+                    String text = transcribeChunk(chunk);
+                    int done = finished.incrementAndGet();
+                    log.info("ASR 分片 {}/{} 完成", done, chunks.size());
+                    return text;
+                }));
+            }
+
+            long stepMs = properties.getChunkSeconds() * 1000L;
+            List<CaptionCue> cues = new ArrayList<>();
+            for (int i = 0; i < futures.size(); i++) {
+                String text = futures.get(i).get();
+                if (text == null || text.isBlank()) {
+                    continue;
+                }
+                long startMs = i * stepMs;
+                long endMs = totalMs > 0 ? Math.min(totalMs, startMs + stepMs) : startMs + stepMs;
+                cues.add(new CaptionCue(cues.size(), startMs, Math.max(startMs, endMs), text.strip()));
+            }
+            return cues;
+        } finally {
+            pool.shutdownNow();
         }
     }
 

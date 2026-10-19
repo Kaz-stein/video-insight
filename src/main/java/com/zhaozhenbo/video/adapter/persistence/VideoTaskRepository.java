@@ -82,4 +82,8 @@ public interface VideoTaskRepository extends JpaRepository<VideoTaskEntity, Long
     List<VideoTaskEntity> findStale(@Param("status") TaskStatus status,
                                     @Param("before") LocalDateTime before,
                                     Pageable pageable);
+
+    /** 最近任务列表：id 自增，倒序即创建时间倒序。 */
+    @Query("select t from VideoTaskEntity t order by t.id desc")
+    List<VideoTaskEntity> findRecent(Pageable pageable);
 }

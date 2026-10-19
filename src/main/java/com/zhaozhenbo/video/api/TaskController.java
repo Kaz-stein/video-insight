@@ -5,6 +5,7 @@ import com.zhaozhenbo.video.adapter.persistence.VideoTaskRepository;
 import com.zhaozhenbo.video.api.dto.NoteResponse;
 import com.zhaozhenbo.video.api.dto.LinkTaskRequest;
 import com.zhaozhenbo.video.api.dto.TaskResponse;
+import com.zhaozhenbo.video.api.dto.TaskSummaryResponse;
 import com.zhaozhenbo.video.application.TaskSubmissionService;
 import com.zhaozhenbo.video.port.NoteStorePort;
 import com.zhaozhenbo.video.port.StoredNote;
@@ -21,6 +22,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import org.springframework.data.domain.PageRequest;
+
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/tasks")
 public class TaskController {
@@ -35,6 +40,20 @@ public class TaskController {
         this.submission = submission;
         this.tasks = tasks;
         this.notes = notes;
+    }
+
+    /**
+     * 最近任务列表，供"任务历史 / 继续上次任务"使用。
+     *
+     * 现在是单用户：不做过滤。接多账户时必须改成按当前登录用户过滤，
+     * 否则任何人拉这个接口就能看到所有人的任务标题。
+     */
+    @GetMapping
+    public List<TaskSummaryResponse> recent(@RequestParam(defaultValue = "15") int limit) {
+        int size = Math.min(Math.max(limit, 1), 50);
+        return tasks.findRecent(PageRequest.of(0, size)).stream()
+                .map(TaskSummaryResponse::from)
+                .toList();
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

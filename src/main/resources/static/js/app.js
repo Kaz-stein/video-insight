@@ -72,7 +72,20 @@ const els = {
     statRecall: $('#statRecall'),
     statUnsupported: $('#statUnsupported'),
     statDuration: $('#statDuration'),
+    historyBlock: $('#historyBlock'),
+    historyList: $('#historyList'),
+    historyRefresh: $('#historyRefresh'),
 };
+
+const LAST_TASK_KEY = 'vi-last-task';
+const HISTORY_STATES = {
+    PENDING: '排队中',
+    RUNNING: '处理中',
+    DONE: '已完成',
+    FAILED: '失败',
+};
+/** 轮询代次：切到别的任务时把上一轮循环作废，避免两个循环同时写界面 */
+let pollGeneration = 0;
 
 function getUserId() {
     const key = 'video-insight-user';
@@ -415,20 +428,24 @@ async function putChunk(uploadId, index, blob, checksum) {
 function startTask(payload) {
     state.taskId = payload.id;
     state.task = payload;
+    try { localStorage.setItem(LAST_TASK_KEY, String(payload.id)); } catch { /* 隐私模式忽略 */ }
     els.stageBlock.hidden = false;
     setStage(payload);
     setMessage('任务已提交，正在后台处理。');
     pollTask(payload.id);
+    loadHistory();
 }
 
 async function pollTask(taskId) {
+    const generation = ++pollGeneration;
     state.polling = true;
     updateSubmitAvailability();
-    while (state.polling) {
+    while (state.polling && generation === pollGeneration) {
         try {
             const response = await fetch(`/api/tasks/${taskId}`, { cache: 'no-store' });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const task = await response.json();
+            if (generation !== pollGeneration) return;
             state.task = task;
             setStage(task);
 
@@ -437,6 +454,7 @@ async function pollTask(taskId) {
                 setBusy(false);
                 setMessage('笔记已生成。');
                 await loadNote(task);
+                loadHistory();
                 return;
             }
             if (task.status === 'FAILED') {
@@ -444,9 +462,11 @@ async function pollTask(taskId) {
                 setBusy(false);
                 setMessage(task.error || '任务失败，可尝试从断点重试。', true);
                 els.retryBtn.hidden = false;
+                loadHistory();
                 return;
             }
         } catch (err) {
+            if (generation !== pollGeneration) return;
             state.polling = false;
             setBusy(false);
             setMessage(`轮询任务失败：${err.message}`, true);
@@ -496,6 +516,7 @@ async function loadNote(task) {
 function renderNote(note, task) {
     els.noteEmpty.hidden = true;
     els.noteArticle.hidden = false;
+    els.downloadBtn.disabled = false;   // 上一次任务失败时被禁用过，这里恢复
     els.noteTitle.textContent = task.title || '视频笔记';
     els.noteSummary.textContent = note.summary || '这份笔记暂时没有摘要。';
     els.noteMeta.replaceChildren();
@@ -726,9 +747,114 @@ function bindEvents() {
     });
 }
 
+function formatHistoryTime(iso) {
+    if (!iso) return '';
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** 拉最近任务；失败时静默，历史面板不该影响主流程 */
+async function loadHistory() {
+    try {
+        const response = await fetch('/api/tasks?limit=8', { cache: 'no-store' });
+        if (!response.ok) return;
+        renderHistory(await response.json());
+    } catch { /* 忽略 */ }
+}
+
+function renderHistory(items) {
+    if (!Array.isArray(items) || items.length === 0) {
+        els.historyBlock.hidden = true;
+        return;
+    }
+    els.historyBlock.hidden = false;
+    els.historyList.replaceChildren();
+
+    items.forEach((item) => {
+        const li = document.createElement('li');
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'history-item';
+        button.title = item.title || `任务 #${item.id}`;
+        button.addEventListener('click', () => openTask(item.id));
+
+        const title = document.createElement('span');
+        title.className = 'h-title';
+        title.textContent = item.title || `任务 #${item.id}`;
+
+        const status = document.createElement('span');
+        status.className = 'h-state';
+        status.dataset.state = item.status || '';
+        status.textContent = HISTORY_STATES[item.status] || item.status || '—';
+
+        const meta = document.createElement('span');
+        meta.className = 'h-meta';
+        meta.textContent = formatHistoryTime(item.createdAt);
+
+        button.append(title, status, meta);
+        li.appendChild(button);
+        els.historyList.appendChild(li);
+    });
+}
+
+/** 打开某个历史任务：完成的直接出笔记，没跑完的接管轮询 */
+async function openTask(taskId) {
+    pollGeneration++;           // 作废上一轮轮询，避免两个循环同时改界面
+    state.polling = false;
+    els.retryBtn.hidden = true;
+    els.stageBlock.hidden = false;
+    setMessage('正在载入历史任务…');
+
+    try {
+        const response = await fetch(`/api/tasks/${taskId}`, { cache: 'no-store' });
+        if (response.status === 404) {
+            // 记录已被清库删掉，别在每次打开页面时都弹错误
+            try { localStorage.removeItem(LAST_TASK_KEY); } catch { /* 忽略 */ }
+            els.stageBlock.hidden = true;
+            setMessage('');
+            return;
+        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const task = await response.json();
+
+        state.taskId = task.id;
+        state.task = task;
+        try { localStorage.setItem(LAST_TASK_KEY, String(task.id)); } catch { /* 忽略 */ }
+        setStage(task);
+
+        if (task.status === 'DONE') {
+            setMessage('已载入历史笔记。');
+            await loadNote(task);
+        } else if (task.status === 'FAILED') {
+            setMessage(task.error || '任务失败，可尝试从断点重试。', true);
+            els.retryBtn.hidden = false;
+            els.downloadBtn.disabled = true;
+        } else {
+            setMessage('任务仍在处理，继续跟踪进度…');
+            pollTask(task.id);
+        }
+    } catch (err) {
+        setMessage(`载入历史任务失败：${err.message}`, true);
+    }
+}
+
+/** 刷新页面后自动回到上一次打开的任务 */
+async function restoreLastTask() {
+    let raw = null;
+    try { raw = localStorage.getItem(LAST_TASK_KEY); } catch { return; }
+    const id = Number(raw);
+    if (!Number.isFinite(id) || id <= 0) return;
+    await openTask(id);
+}
+
 setMode('link');
 bindEvents();
 loadEval();
+els.historyRefresh.addEventListener('click', loadHistory);
+loadHistory();
+restoreLastTask();
 
 // 演示入口：/?demo=1 自动跑示例字幕
 if (new URLSearchParams(window.location.search).get('demo') === '1') {
