@@ -4,6 +4,26 @@
 
 Tag：`milestone-t5-2026-10-19`
 
+远程仓库：<https://github.com/Kaz-stein/video-insight>
+
+关键提交：
+
+- `af43104` — T1–T5 代码里程碑（tag / milestone 分支指向这里）
+- `8f4df95` — 补充 README（文档提交，不改变代码里程碑）
+
+本地离线备份：
+
+```text
+D:\Code\backups\video-insight-milestone-t5-2026-10-19.bundle
+SHA256: 4819E540734D00E70F7B794CBCE36B9E30A80A9516798C0259110088210B89D4
+```
+
+需要离线恢复时：
+
+```powershell
+git clone D:\Code\backups\video-insight-milestone-t5-2026-10-19.bundle video-insight-restore
+```
+
 ### 已完成
 
 - **T1 工程骨架**：Spring Boot 4.1.1 + Java 25、MySQL schema、Actuator 健康检查
