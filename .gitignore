@@ -37,3 +37,7 @@ data/
 logs/
 *.log
 .env
+.env.*
+!.env.example
+secrets/
+*.key

@@ -141,6 +141,16 @@ $env:ASR_CHUNK_SECONDS='60'
 用切片起止时间生成证据时间戳，精度约 ±60 秒。需要逐句精确时间戳时，
 使用 Whisper 系接口（`ASR_PROVIDER=openai`）或接阿里云/腾讯云原生时间戳。
 
+### 不要把 Key 发到聊天里
+
+```powershell
+Copy-Item .env.example .env.local
+# 编辑 .env.local，填入 ASR_API_KEY 等
+.\scripts\run-local.ps1
+```
+
+`.env.local` 已被 gitignore；脚本只在本地进程里注入环境变量，不会把 Key 写进仓库。
+
 ### 4. 测试与运行
 
 ```powershell
