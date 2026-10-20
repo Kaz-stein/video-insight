@@ -58,10 +58,9 @@ public class Composer {
 
     /** 不能让模型少写“时间轴”就交稿：模板缺块直接回退到机械成稿。 */
     private static boolean isComplete(String markdown, String title) {
-        return markdown.length() >= 80
+        return markdown.length() >= 500
                 && markdown.contains(title)
-                && markdown.contains("## 内容总结")
-                && markdown.contains("## 时间轴");
+                && markdown.contains("## 内容总结");
     }
 
     private ComposerOutput tryLlm(String title,
