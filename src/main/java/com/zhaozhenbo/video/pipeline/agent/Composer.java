@@ -3,6 +3,8 @@ package com.zhaozhenbo.video.pipeline.agent;
 import com.zhaozhenbo.video.domain.LlmCall;
 import com.zhaozhenbo.video.domain.LlmStep;
 import com.zhaozhenbo.video.port.LlmPort;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
@@ -17,6 +19,8 @@ import java.util.Map;
  * 文风差一点，但事实链是完整的。
  */
 public class Composer {
+
+    private static final Logger log = LoggerFactory.getLogger(Composer.class);
 
     private final LlmPort llm;
     private final ObjectMapper mapper;
@@ -38,11 +42,21 @@ public class Composer {
         String safeTitle = (title == null || title.isBlank()) ? "视频笔记" : title.strip();
         ComposerOutput output = tryLlm(safeTitle, plan, sections, points);
 
-        String summary = output == null || output.summary() == null || output.summary().isBlank()
-                ? mechanicalSummary(points)
-                : output.summary().strip();
-        String markdown = output == null || output.markdown() == null
-                || !isComplete(output.markdown(), safeTitle)
+        // 摘要与正文必须同源回退：模型摘要配模板正文会拼出"看着像模型输出"的假货
+        boolean fallback = output == null
+                || output.summary() == null || output.summary().isBlank()
+                // v13 契约要求 summary 用固定句式收口；漏了说明模型没按契约走
+                || !output.summary().contains("核心结论")
+                || !isComplete(output.markdown(), safeTitle);
+        if (fallback) {
+            log.warn("Composer 回退模板: output={}, head={}",
+                    output == null ? "null" : output.markdown() == null ? "null" : output.markdown().length(),
+                    output == null || output.markdown() == null
+                            ? "-"
+                            : output.markdown().substring(0, Math.min(200, output.markdown().length())));
+        }
+        String summary = fallback ? mechanicalSummary(points) : output.summary().strip();
+        String markdown = fallback
                 ? mechanicalMarkdown(safeTitle, plan, points, model, summary)
                 : output.markdown();
 
@@ -53,14 +67,16 @@ public class Composer {
                 buildOutline(plan, points),
                 points,
                 model,
-                Prompts.COMPOSER_VERSION);
+                ComposerPrompt.VERSION);
     }
 
     /** 不能让模型少写“时间轴”就交稿：模板缺块直接回退到机械成稿。 */
     private static boolean isComplete(String markdown, String title) {
-        return markdown.length() >= 500
-                && markdown.contains(title)
-                && markdown.contains("## 内容总结");
+        // v13 的正文是一级标题 + 开头段 + 二级章节，没有"## 内容总结"；判据只看骨架是否成形
+        return markdown != null
+                && markdown.length() >= 500
+                && markdown.startsWith("# ")
+                && markdown.contains("## ");
     }
 
     private ComposerOutput tryLlm(String title,
@@ -72,12 +88,12 @@ public class Composer {
             String inputJson = mapper.writeValueAsString(input);
             String response = llm.complete(new LlmCall(
                     LlmStep.COMPOSER,
-                    Prompts.COMPOSER_VERSION,
-                    Prompts.composerSystem(),
+                    ComposerPrompt.VERSION,
+                    ComposerPrompt.TEXT,
                     Prompts.composerUser(inputJson),
                     input,
                     0.3,
-                    6000));
+                    8000));
             return mapper.readValue(response, ComposerOutput.class);
         } catch (Exception e) {
             return null;

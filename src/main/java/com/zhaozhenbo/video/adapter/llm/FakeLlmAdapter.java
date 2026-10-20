@@ -131,6 +131,9 @@ public class FakeLlmAdapter implements LlmPort {
                 break;
             }
         }
+        // v13 的 gate 要求 summary 用固定句式收口，离线的假模型也必须遵守，
+        // 否则测试覆盖到的是机械模板而不是模型路径
+        summary.append("。核心结论可以概括为：**以上要点均可回跳原片时间点核对**");
 
         StringBuilder markdown = new StringBuilder();
         markdown.append("# ").append(input.title()).append("\n\n");

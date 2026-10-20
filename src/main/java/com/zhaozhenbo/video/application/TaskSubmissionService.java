@@ -141,13 +141,55 @@ public class TaskSubmissionService {
         task.setFingerprint(fingerprint);
         task.setParamsHash(paramsHash);
         String sharedTitle = VideoUrlExtractor.extractTitle(url);
-        task.setTitle(title == null || title.isBlank()
+        String finalTitle = title == null || title.isBlank()
                 ? (sharedTitle == null ? linkTitle(uri) : sharedTitle)
-                : title.strip());
+                : title.strip();
+        // 标题是 Composer 判断专名的锚点：BV 号里没有 "groq"，模型就无从纠正 ASR 的 "g cloud"
+        if ("BILIBILI".equals(task.getSourceType()) && needsRealTitle(finalTitle)) {
+            String real = fetchBilibiliTitle(normalized);
+            if (real != null && !real.isBlank()) {
+                finalTitle = real;
+            }
+        }
+        task.setTitle(finalTitle);
         task.setStatus(TaskStatus.PENDING);
         task = tasks.save(task);
         enqueue(task.getId());
         return task;
+    }
+
+    /** 标题为空、或只是个 BV 号时才回填，绝不覆盖用户手填的标题。 */
+    private static boolean needsRealTitle(String title) {
+        if (title == null || title.isBlank()) return true;
+        return title.strip().matches("(?i)^BV[0-9A-Za-z]{10}$");
+    }
+
+    /**
+     * 取 B 站视频真实标题（含 desc/tname 的入口以后可复用这里）。
+     * 失败一律返回 null：拿不到标题不该阻塞任务提交。
+     */
+    private static String fetchBilibiliTitle(String url) {
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("(?i)(BV[0-9A-Za-z]{10})").matcher(url);
+        if (!m.find()) return null;
+        String bvid = m.group(1);
+        try {
+            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                    .connectTimeout(java.time.Duration.ofSeconds(5)).build();
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create("https://api.bilibili.com/x/web-interface/view?bvid=" + bvid))
+                    .header("User-Agent", "Mozilla/5.0")
+                    .timeout(java.time.Duration.ofSeconds(8))
+                    .GET().build();
+            String body = client.send(request,
+                    java.net.http.HttpResponse.BodyHandlers.ofString(java.nio.charset.StandardCharsets.UTF_8)).body();
+            java.util.regex.Matcher t = java.util.regex.Pattern
+                    .compile("\"title\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"").matcher(body);
+            if (!t.find()) return null;
+            return t.group(1).replace("\\\"", "\"").replace("\\/", "/");
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public VideoTaskEntity retry(long taskId) {

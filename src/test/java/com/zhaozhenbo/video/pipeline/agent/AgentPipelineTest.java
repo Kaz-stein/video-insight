@@ -110,6 +110,10 @@ class AgentPipelineTest {
         assertThat(draft.groundedRatio()).isEqualTo(1.0);
         assertThat(draft.passesQualityGate()).isTrue();
         assertThat(draft.outline()).isNotEmpty();
+        // 走的是模型稿而不是机械模板：模板正文带这句固定尾巴，模型稿没有
+        assertThat(draft.markdown()).startsWith("# 线程池讲解");
+        assertThat(draft.markdown()).doesNotContain("证据经后端校验");
+        assertThat(draft.summary()).contains("核心结论");
     }
 
     @Test
