@@ -38,9 +38,14 @@
 - HTTP API：上传字幕、查询任务、取笔记 JSON、下载 Markdown、失败重试
 - 视频链接：B 站走公开 API（pagelist/player/playurl），YouTube 走 yt-dlp；都不下载整段视频
 - 视频文件：ffmpeg 抽内嵌字幕；没有字幕时调用 OpenAI 兼容的云 ASR
-- 分片上传：8MB 分片、分片 sha256、断点查询、整体合并校验
+- 分片上传：8MB 分片、3 路并发、分片 sha256、断点续传、合并时可选整文件 sha256 校验
+- 任务历史：最近 8 条任务列表，点开即载入笔记；刷新页面自动回到上次看的任务
+- 笔记成稿：`ComposerPrompt` v13，先判型（并列 / 递进）再抽信息清单，最后按模板成稿
+- 专名还原：B 站任务回填真实标题作为锚点，ASR 听坏的英文专名按标题还原并标注“原文读作 X”
+- 前端渲染：笔记 Markdown 直接渲染（标题 / 列表 / 代码块 / 表格），正文时间轴可点击跳回 B 站对应秒
 - 评测接口：引用可回溯率、无依据率、平均端到端耗时
 - Redis 令牌桶限流：Lua 原子扣减，超限返回 429 + `Retry-After`
+- 本地无 broker 模式：`MQ_ENABLED=false` 时用虚拟线程消费内存队列，生产仍走 RocketMQ
 
 ## 架构
 
@@ -215,7 +220,7 @@ $env:MYSQL_IT='true'; mvn -Dtest=MysqlArtifactStoreIT test
 
 ## 测试状态
 
-- `mvn test`：46 项通过，0 失败，1 项可选 MQ 冒烟默认跳过
+- `mvn test`：51 项通过，0 失败，1 项可选 MQ 冒烟默认跳过
 - 真 RocketMQ 冒烟：通过
 - MySQL JSON artifact 集成测试：通过
 - 手工端到端：任务 `DONE`，六个 artifact 落库，NOTE 首条要点 `GROUNDED / overlap=1.0`
