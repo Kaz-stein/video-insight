@@ -104,9 +104,10 @@ $env:FFMPEG_PATH='...\ffmpeg.exe'
 $env:YTDLP_PATH='...\yt-dlp.exe'
 # $env:YTDLP_COOKIES_FILE='...\cookies.txt'   # YouTube 需要时
 # $env:ASR_ENABLED='true'
-# $env:ASR_BASE_URL='https://api.openai.com'
+# $env:ASR_PROVIDER='siliconflow'
+# $env:ASR_BASE_URL='https://api.siliconflow.cn/v1'
 # $env:ASR_API_KEY='...'
-# $env:ASR_MODEL='whisper-1'
+# $env:ASR_MODEL='FunAudioLLM/SenseVoiceSmall'
 # $env:ASR_LANGUAGE='zh'
 $env:RATE_LIMIT_MODE='memory'     # 有 Redis 时用 redis
 # $env:RATE_LIMIT_CAPACITY='10'
@@ -116,14 +117,19 @@ $env:RATE_LIMIT_MODE='memory'     # 有 Redis 时用 redis
 # $env:LLM_MODEL='deepseek-chat'
 ```
 
-ASR 是 **OpenAI 兼容**的 `/v1/audio/transcriptions` 接口，推荐用环境变量配置：
+ASR 走 **OpenAI 兼容**的 `/v1/audio/transcriptions` 接口，两个适配器：
+
+- `ASR_PROVIDER=siliconflow`：SenseVoice，只返回纯文本没有句级时间戳，服务端按 60 秒切片、3 路并发转写，时间精度 ±60 秒
+- `ASR_PROVIDER=openai`：请求 `verbose_json` 并解析 `segments`，能拿到句级时间戳，适合对可回跳精度要求高的场景
 
 ```powershell
 $env:ASR_ENABLED='true'
-$env:ASR_BASE_URL='https://api.openai.com'   # 或兼容网关
+$env:ASR_PROVIDER='siliconflow'                  # 或 openai
+$env:ASR_BASE_URL='https://api.siliconflow.cn/v1'
 $env:ASR_API_KEY='sk-...'
-$env:ASR_MODEL='whisper-1'
+$env:ASR_MODEL='FunAudioLLM/SenseVoiceSmall'     # openai 适配器填 whisper-1 之类
 $env:ASR_LANGUAGE='zh'
+# $env:ASR_CHUNK_SECONDS='60'
 # $env:ASR_MAX_AUDIO_MB='100'
 ```
 
@@ -227,13 +233,22 @@ $env:MYSQL_IT='true'; mvn -Dtest=MysqlArtifactStoreIT test
 
 ## 回退
 
-里程碑固定为：
+每个阶段打完都留了标签，按时间倒序：
 
-- 分支：`milestone/frontend-2026-10-19`
-- 标签：`milestone-frontend-2026-10-19`
+```text
+milestone-history-2026-10-19      任务历史面板
+milestone-upload-2026-10-19       并发分片 + 整文件校验
+milestone-local-run-2026-10-19    启动脚本自检 + 内存队列
+milestone-asr-2026-10-19          SiliconFlow ASR
+milestone-video-fix-2026-10-19    视频链路修复
+milestone-video-2026-10-19        视频上传
+milestone-frontend-2026-10-19     前端界面
+milestone-t7-2026-10-19           MQ 与重试
+```
 
 ```powershell
 git fetch --tags
+git tag                                  # 看全部标签
 git switch -c rollback/frontend milestone-frontend-2026-10-19
 ```
 
@@ -241,8 +256,9 @@ git switch -c rollback/frontend milestone-frontend-2026-10-19
 
 ## Roadmap
 
-- 前端：播放器时间戳同步（页面和交互已完成）
-- 输入：画面 OCR（后续）
+- 画面 OCR：抓关键帧里的地址、命令、配置片段（ASR 只能拿到语音，URL 和型号全靠它）
+- 术语注入：把标题/简介里的英文 token 作为 glossary 显式传给出稿阶段（当前靠标题隐式对齐，已验证够用）
+- 多账户：users 表 + bcrypt + 会话，所有查询按 user_id 过滤（当前单用户，`user_id` 固定）
 
 ## 说明
 
