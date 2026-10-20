@@ -12,7 +12,7 @@ const STAGES = [
 const STAGE_NAMES = STAGES.map(([name]) => name);
 const CHUNK_SIZE = 8 * 1024 * 1024;
 const UPLOAD_CONCURRENCY = 3;
-const VIDEO_EXT = ['.mp4', '.mkv', '.mov', '.webm', '.m4v', '.avi', '.flv'];
+const VIDEO_EXT = ['.mp4', '.mkv', '.mov', '.webm', '.m4v', '.avi', '.flv', '.ts', '.m2ts', '.wmv', '.mpg', '.mpeg'];
 const SUBTITLE_EXT = ['.srt', '.vtt'];
 
 const SAMPLE_SRT = `1
@@ -181,18 +181,21 @@ function showProgress(ratio) {
 function pickFile(file) {
     if (!file) return;
     const ext = extensionOf(file.name);
-    if (!VIDEO_EXT.includes(ext) && !SUBTITLE_EXT.includes(ext)) {
+    // 下载来的视频常是 .ts / .m2ts，扩展名表不可能穷举；
+    // 浏览器给的 MIME 也参与判断，任一命中视频就按视频处理
+    const isVideo = VIDEO_EXT.includes(ext) || (file.type || '').startsWith('video/');
+    if (!isVideo && !SUBTITLE_EXT.includes(ext)) {
         setMessage('支持 mp4 / mkv / mov / webm 视频，或 srt / vtt 字幕。', true);
         return;
     }
     state.file = file;
-    state.fileKind = VIDEO_EXT.includes(ext) ? 'video' : 'subtitle';
+    state.fileKind = isVideo ? 'video' : 'subtitle';
     els.fileName.textContent = `${file.name} · ${formatBytes(file.size)}`;
     els.fileName.hidden = false;
     els.dropTitle.textContent = state.fileKind === 'video' ? '视频已就位' : '字幕已就位';
     els.dropHint.textContent = state.fileKind === 'video'
-        ? '将按 8MB 分片、3 路并发上传，可断点续传'
-        : '字幕将单请求上传';
+        ? '8MB 分片 · 3 路并发 · 可断点续传'
+        : '字幕单次上传';
     if (!els.titleInput.value.trim()) {
         els.titleInput.value = file.name.replace(/\.(mp4|mkv|mov|webm|m4v|avi|flv|srt|vtt)$/i, '');
     }

@@ -262,7 +262,8 @@ public class UploadSessionService {
     }
 
     private static boolean isVideo(String extension) {
-        return List.of(".mp4", ".mkv", ".mov", ".webm", ".m4v", ".avi", ".flv").contains(extension);
+        return List.of(".mp4", ".mkv", ".mov", ".webm", ".m4v", ".avi", ".flv",
+                ".ts", ".m2ts", ".wmv", ".mpg", ".mpeg").contains(extension);
     }
 
     private static boolean isSubtitle(String extension) {
