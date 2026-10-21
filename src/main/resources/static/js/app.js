@@ -35,6 +35,8 @@ const state = {
     task: null,
     note: null,
     polling: false,
+    // 标题是否是用户手填的：只有手填才随请求发送，否则交给服务端回填真实标题
+    titleDirty: false,
 };
 
 const els = {
@@ -160,6 +162,10 @@ function extensionOf(name) {
 
 function setMode(mode) {
     state.mode = mode;
+    // 从文件模式切回链接模式时，清掉上一个文件自动带出来的标题
+    if (mode === 'link' && !state.titleDirty) {
+        els.titleInput.value = '';
+    }
     els.sourceTabs.forEach((tab) => {
         const active = tab.dataset.mode === mode;
         tab.classList.toggle('is-active', active);
@@ -196,7 +202,7 @@ function pickFile(file) {
     els.dropHint.textContent = state.fileKind === 'video'
         ? '8MB 分片 · 3 路并发 · 可断点续传'
         : '字幕单次上传';
-    if (!els.titleInput.value.trim()) {
+    if (!state.titleDirty) {
         els.titleInput.value = file.name.replace(/\.(mp4|mkv|mov|webm|m4v|avi|flv|srt|vtt)$/i, '');
     }
     els.retryBtn.hidden = true;
@@ -244,7 +250,10 @@ async function submitLink() {
                 'Content-Type': 'application/json',
                 'X-User-Id': getUserId(),
             },
-            body: JSON.stringify({ url, title: els.titleInput.value.trim() }),
+            body: JSON.stringify({
+                url,
+                title: state.titleDirty ? els.titleInput.value.trim() : '',
+            }),
         });
         const payload = await response.json().catch(() => ({}));
         if (response.status === 429) {
@@ -834,6 +843,7 @@ function bindEvents() {
         tab.addEventListener('click', () => setMode(tab.dataset.mode));
     });
     els.linkInput.addEventListener('input', updateSubmitAvailability);
+    els.titleInput.addEventListener('input', () => { state.titleDirty = true; });
     els.linkInput.addEventListener('keydown', (event) => {
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter'
                 && els.linkInput.value.trim()) {
@@ -880,6 +890,7 @@ function bindEvents() {
         const file = new File([SAMPLE_SRT], 'thread-pool-demo.srt', { type: 'text/plain' });
         pickFile(file);
         els.titleInput.value = '线程池讲解';
+        state.titleDirty = false;
         submit();
     });
 }
